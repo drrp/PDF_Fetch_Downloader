@@ -439,3 +439,21 @@ def download_book(book_page_url: str = Query(...), title: str = Query(...), sour
     except Exception as e:
         print(f"Download error: {e}")
         return {"status": "error", "message": str(e)}
+    
+
+@app.post("/reset-app")
+def reset_application():
+    try:
+        # Clear out any downloaded temporary files in the local downloads directory if desired
+        downloads_dir = "downloads"
+        if os.path.exists(downloads_dir):
+            for filename in os.listdir(downloads_dir):
+                file_path = os.path.join(downloads_dir, filename)
+                if os.path.isfile(file_path):
+                    try:
+                        os.unlink(file_path)
+                    except Exception:
+                        pass
+        return {"status": "success", "message": "App reset successfully."}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
