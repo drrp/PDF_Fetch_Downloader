@@ -14,11 +14,9 @@ FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
 FRONTEND_INDEX = os.path.join(FRONTEND_DIR, "index.html")
 ROOT_INDEX = os.path.join(BASE_DIR, "index.html")
 
-# Create a dedicated downloads folder in your project directory
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-# Mount frontend and downloads directories
 if os.path.exists(FRONTEND_DIR):
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
@@ -34,151 +32,318 @@ def read_root():
     return {"error": "index.html not found"}
 
 
-def fetch_all_pages(query: str):
-    all_books = []
-    base_domain = "https://sundarayya.org"
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/120.0.0.0 Safari/537.36"
-        )
-    }
+# --- ARCHITECTURE: Scraper Classes ---
 
-    # Dynamically loop through all pages until no further results exist
-    page = 0
-    while True:
-        url = f"{base_domain}/books"
-        params = {
-            "field_book_title_in_english_value": query,
-            "page": page,
+class BaseLibraryScraper:
+    def search(self, query: str):
+        raise NotImplementedError
+    
+    def download(self, book_url: str, title: str, filepath: str):
+        raise NotImplementedError
+
+
+class SVKScraper(BaseLibraryScraper):
+    def __init__(self):
+        self.base_domain = "https://sundarayya.org"
+        self.headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         }
 
+    def search(self, query: str):
+        all_books = []
+        page = 0
+        while True:
+            url = f"{self.base_domain}/books"
+            params = {"field_book_title_in_english_value": query, "page": page}
+            try:
+                response = requests.get(url, params=params, headers=self.headers, timeout=15)
+                if response.status_code != 200:
+                    break
+                soup = BeautifulSoup(response.text, "html.parser")
+                cards = soup.select(".book-card-margin")
+                if not cards:
+                    break
+
+                page_books_added = 0
+                for card in cards:
+                    title_tag = None
+                    for a_tag in card.select(".book-title a"):
+                        href_val = a_tag.get("href", "")
+                        if href_val and href_val != "#":
+                            title_tag = a_tag
+                            break
+                    
+                    author_tag = card.select_one(".book-author")
+                    img_tag = card.select_one(".book-image img") 
+
+                    author_text = author_tag.get_text(strip=True) if author_tag else ""
+
+                    if title_tag:
+                        title_text = title_tag.get_text(strip=True)
+                        detail_href = title_tag.get("href", "")
+                        detail_url = f"{self.base_domain}{detail_href}" if detail_href.startswith("/") else detail_href
+                        display_title = f"{title_text} - {author_text}" if author_text else title_text
+
+                        cover_url = ""
+                        if img_tag and img_tag.get("src"):
+                            src = img_tag.get("src")
+                            cover_url = f"{self.base_domain}{src}" if src.startswith("/") else src
+
+                        book_item = {
+                            "title": display_title,
+                            "download_url": detail_url,
+                            "cover_image": cover_url,
+                            "source": "SVK"
+                        }
+                        if book_item not in all_books:
+                            all_books.append(book_item)
+                            page_books_added += 1
+
+                next_page_btn = soup.select_one(".pager__item--next a")
+                if not next_page_btn or page_books_added == 0:
+                    break
+                page += 1
+            except Exception as e:
+                print(f"SVK Error on page {page}: {e}")
+                break
+        return all_books
+
+    def download(self, book_page_url: str, title: str, filepath: str):
+        response = requests.get(book_page_url, headers=self.headers, timeout=15)
+        soup = BeautifulSoup(response.text, "html.parser")
+        pdf_href = None
+        
+        download_button = soup.select_one("button[onclick*='location.href']")
+        if download_button:
+            match = re.search(r"location\.href=['\"]([^'\"]+)['\"]", download_button.get("onclick", ""))
+            if match:
+                pdf_href = match.group(1)
+
+        if not pdf_href:
+            fallback_pdf = soup.find("a", href=lambda h: h and h != "#" and ".pdf" in h.lower())
+            if fallback_pdf:
+                pdf_href = fallback_pdf.get("href")
+
+        if not pdf_href or pdf_href == "#":
+            raise Exception("Could not extract PDF link from SVK book page.")
+
+        pdf_url = f"{self.base_domain}{pdf_href}" if pdf_href.startswith("/") else pdf_href
+        pdf_response = requests.get(pdf_url, headers=self.headers, stream=True)
+        if pdf_response.status_code != 200:
+            raise Exception("Failed to download PDF stream from SVK.")
+
+        with open(filepath, "wb") as f:
+            for chunk in pdf_response.iter_content(chunk_size=1024):
+                if chunk:
+                    f.write(chunk)
+
+
+class InternetArchiveScraper(BaseLibraryScraper):
+    def __init__(self):
+        self.api_url = "https://archive.org/advancedsearch.php"
+
+    def search(self, query: str):
+        all_books = []
+        params = {
+            "q": f"title:({query}) OR description:({query}) AND mediatype:(texts)",
+            "fl[]": "identifier,title,creator,publicdate",
+            "rows": 20,
+            "output": "json"
+        }
         try:
-            response = requests.get(url, params=params, headers=headers, timeout=15)
-            if response.status_code != 200:
-                break
+            res = requests.get(self.api_url, params=params, timeout=15)
+            if res.status_code == 200:
+                data = res.json()
+                docs = data.get("response", {}).get("docs", [])
+                for doc in docs:
+                    identifier = doc.get("identifier")
+                    title = doc.get("title", "Untitled")
+                    creator = doc.get("creator", "Unknown Author")
+                    if isinstance(creator, list):
+                        creator = ", ".join(creator)
 
-            soup = BeautifulSoup(response.text, "html.parser")
-            cards = soup.select(".book-card-margin")
+                    display_title = f"{title} - {creator}"
+                    detail_url = f"https://archive.org/details/{identifier}"
+                    cover_url = f"https://archive.org/services/img/{identifier}"
 
-            if not cards:
-                break
-
-            page_books_added = 0
-            for card in cards:
-                title_tag = None
-                for a_tag in card.select(".book-title a"):
-                    href_val = a_tag.get("href", "")
-                    if href_val and href_val != "#":
-                        title_tag = a_tag
-                        break
-                
-                author_tag = card.select_one(".book-author")
-                img_tag = card.select_one(".book-image img") 
-
-                author_text = ""
-                if author_tag:
-                    author_text = author_tag.get_text(strip=True)
-
-                if title_tag:
-                    title_text = title_tag.get_text(strip=True)
-                    detail_href = title_tag.get("href", "")
-
-                    detail_url = f"{base_domain}{detail_href}" if detail_href.startswith("/") else detail_href
-                    display_title = f"{title_text} - {author_text}" if author_text else title_text
-
-                    cover_url = ""
-                    if img_tag and img_tag.get("src"):
-                        src = img_tag.get("src")
-                        cover_url = f"{base_domain}{src}" if src.startswith("/") else src
-
-                    book_item = {
+                    all_books.append({
                         "title": display_title,
                         "download_url": detail_url,
-                        "cover_image": cover_url
-                    }
-
-                    if book_item not in all_books:
-                        all_books.append(book_item)
-                        page_books_added += 1
-
-            next_page_btn = soup.select_one(".pager__item--next a")
-            if not next_page_btn or page_books_added == 0:
-                break
-
-            page += 1
-
+                        "cover_image": cover_url,
+                        "source": "Internet Archive",
+                        "identifier": identifier
+                    })
         except Exception as e:
-            print(f"Error fetching page {page}: {e}")
-            break
+            print(f"Internet Archive Search Error: {e}")
+        return all_books
 
-    return all_books
+    def download(self, book_url: str, title: str, filepath: str):
+        identifier = book_url.rstrip("/").split("/")[-1]
+        metadata_url = f"https://archive.org/metadata/{identifier}"
+        res = requests.get(metadata_url, timeout=15)
+        if res.status_code != 200:
+            raise Exception("Failed to fetch Internet Archive metadata.")
+            
+        files = res.json().get("files", [])
+        pdf_file = None
+        for file in files:
+            if file.get("format") == "Text PDF" or file.get("name", "").endswith(".pdf"):
+                pdf_file = file.get("name")
+                break
+        
+        if not pdf_file:
+            for file in files:
+                if file.get("name", "").lower().endswith(".pdf"):
+                    pdf_file = file.get("name")
+                    break
+
+        if not pdf_file:
+            raise Exception("No direct PDF file found in this Internet Archive item.")
+
+        pdf_download_url = f"https://archive.org/download/{identifier}/{pdf_file}"
+        pdf_response = requests.get(pdf_download_url, stream=True, timeout=30)
+        if pdf_response.status_code != 200:
+            raise Exception("Failed to download PDF from Internet Archive.")
+
+        with open(filepath, "wb") as f:
+            for chunk in pdf_response.iter_content(chunk_size=1024):
+                if chunk:
+                    f.write(chunk)
+
+
+class ManasuFoundationScraper(BaseLibraryScraper):
+    def __init__(self):
+        self.base_domain = "https://www.manasufoundation.com"
+        self.headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+
+    def search(self, query: str):
+        all_books = []
+        url = f"{self.base_domain}/books/"
+        params = {"wbg_title_s": query}
+        try:
+            response = requests.get(url, params=params, headers=self.headers, timeout=15)
+            if response.status_code != 200:
+                return all_books
+
+            soup = BeautifulSoup(response.text, "html.parser")
+            # Target book items based on user snippet structure
+            items = soup.select(".wgb-item-link, .wbg-main-wrapper a, div.wbg-item a")
+            
+            seen_urls = set()
+            for item in items:
+                href = item.get("href")
+                if not href or "/books/" not in href or href == self.base_domain + "/books/":
+                    continue
+                if href in seen_urls:
+                    continue
+                seen_urls.add(href)
+
+                title_text = item.get_text(strip=True)
+                img_tag = item.find("img")
+                cover_url = ""
+                if img_tag and img_tag.get("src"):
+                    cover_url = img_tag.get("src")
+                    # If alt text exists and is cleaner, use it as title
+                    if img_tag.get("alt"):
+                        title_text = img_tag.get("alt")
+
+                if not title_text:
+                    title_text = "Manasu Foundation Book"
+
+                all_books.append({
+                    "title": title_text,
+                    "download_url": href,
+                    "cover_image": cover_url,
+                    "source": "Manasu Foundation"
+                })
+        except Exception as e:
+            print(f"Manasu Foundation Search Error: {e}")
+        return all_books
+
+    def download(self, book_page_url: str, title: str, filepath: str):
+        # 1. Visit the book detail page
+        response = requests.get(book_page_url, headers=self.headers, timeout=15)
+        if response.status_code != 200:
+            raise Exception("Failed to open Manasu Foundation book page.")
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        
+        # 2. Locate the download button/link specified in user snippet
+        download_a = soup.select_one("#post-5883 div.wbg-details-column.wbg-details-wrapper div div.wbg-details-summary span.wbg-single-button-container a")
+        if not download_a:
+            # Fallback broader selector for download links on Manasu Foundation pages
+            download_a = soup.select_one(".wbg-single-button-container a, .wbg-details-summary a[href*='drive.google.com'], .wbg-details-summary a")
+
+        if not download_a or not download_a.get("href"):
+            raise Exception("Could not find download link on Manasu Foundation book page.")
+
+        target_url = download_a.get("href")
+
+        # 3. Handle Google Drive links if present
+        if "drive.google.com" in target_url:
+            # Extract Google Drive File ID using regex
+            match = re.search(r"/d/([a-zA-Z0-9_-]+)", target_url)
+            if match:
+                file_id = match.group(1)
+                # Google Drive direct export URL for large/small files
+                target_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+
+        # 4. Download file stream
+        file_response = requests.get(target_url, headers=self.headers, stream=True, timeout=30)
+        if file_response.status_code != 200:
+            raise Exception("Failed to download PDF stream from destination link.")
+
+        with open(filepath, "wb") as f:
+            for chunk in file_response.iter_content(chunk_size=1024):
+                if chunk:
+                    f.write(chunk)
+
+
+svk_scraper = SVKScraper()
+ia_scraper = InternetArchiveScraper()
+manasu_scraper = ManasuFoundationScraper()
 
 
 @app.get("/search")
-def search(query: str = Query(..., description="Search term")):
-    results = fetch_all_pages(query)
+def search(
+    query: str = Query(..., description="Search term"),
+    use_svk: bool = Query(True, description="Fetch from SVK"),
+    use_ia: bool = Query(True, description="Fetch from Internet Archive"),
+    use_manasu: bool = Query(True, description="Fetch from Manasu Foundation")
+):
+    results = []
+    
+    if use_svk:
+        results.extend(svk_scraper.search(query))
+    if use_ia:
+        results.extend(ia_scraper.search(query))
+    if use_manasu:
+        results.extend(manasu_scraper.search(query))
+        
     return {"results": results, "total": len(results)}
 
 
 @app.get("/download-book")
-def download_book(book_page_url: str = Query(...), title: str = Query(...)):
-    headers = {"User-Agent": "Mozilla/5.0"}
-    base_domain = "https://sundarayya.org"
-    
+def download_book(book_page_url: str = Query(...), title: str = Query(...), source: str = Query("SVK")):
     safe_title = re.sub(r'[\\/*?:"<>|]', "", title).strip()
     filename = f"{safe_title}.pdf"
     filepath = os.path.join(DOWNLOAD_DIR, filename)
     
     try:
-        response = requests.get(book_page_url, headers=headers, timeout=15)
-        soup = BeautifulSoup(response.text, "html.parser")
-        
-        pdf_href = None
-        
-        # 1. Extract from the button's onclick attribute
-        download_button = soup.select_one("button[onclick*='location.href']")
-        if download_button:
-            onclick_text = download_button.get("onclick")
-            match = re.search(r"location\.href=['\"]([^'\"]+)['\"]", onclick_text)
-            if match:
-                pdf_href = match.group(1)
-
-        # 2. Fallback to any <a> tag containing '.pdf'
-        if not pdf_href:
-            fallback_pdf = soup.find("a", href=lambda href: href and href != "#" and ".pdf" in href.lower())
-            if fallback_pdf:
-                pdf_href = fallback_pdf.get("href")
-                
-        # 3. Fallback to typical Drupal file paths
-        if not pdf_href:
-            for a_tag in soup.select("#block-sundarayya-content a"):
-                href = a_tag.get("href")
-                if href and href != "#" and ("sites/default/files" in href or "download" in href):
-                    pdf_href = href
-                    break
-        
-        if not pdf_href or pdf_href == "#":
-            return {"status": "error", "message": "Could not extract the PDF link from the page."}
+        if source == "Internet Archive":
+            ia_scraper.download(book_page_url, title, filepath)
+        elif source == "Manasu Foundation":
+            manasu_scraper.download(book_page_url, title, filepath)
+        else:
+            svk_scraper.download(book_page_url, title, filepath)
             
-        pdf_url = f"{base_domain}{pdf_href}" if pdf_href.startswith("/") else pdf_href
-        
-        pdf_response = requests.get(pdf_url, headers=headers, stream=True)
-        if pdf_response.status_code != 200:
-            return {"status": "error", "message": "Failed to download PDF file."}
-            
-        with open(filepath, "wb") as f:
-            for chunk in pdf_response.iter_content(chunk_size=1024):
-                if chunk:
-                    f.write(chunk)
-                    
         return {
             "status": "success", 
             "message": f"Saved to {filepath}", 
             "file_url": f"/downloads/{filename}"
         }
-        
     except Exception as e:
         print(f"Download error: {e}")
         return {"status": "error", "message": str(e)}
