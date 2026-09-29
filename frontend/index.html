@@ -1,0 +1,434 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVK Telugu Digital Library Search</title>
+    
+    <!-- Google Fonts: Inter for UI & NTR / Tenali Ramakrishna for Telugu typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=NTR&family=Tenali+Ramakrishna&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome & SweetAlert2 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <style>
+        :root {
+            --primary-color: #1e3a8a;
+            --primary-hover: #1e40af;
+            --accent-color: #d97706;
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+            --success-color: #059669;
+        }
+
+        body {
+            font-family: 'Inter', 'NTR', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .main-wrapper {
+            width: 100%;
+            max-width: 900px;
+            margin: 40px 20px;
+            background: var(--card-bg);
+            border-radius: 16px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+
+        .hero-header {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        .hero-header h1 {
+            margin: 0 0 10px 0;
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        .hero-header p {
+            margin: 0;
+            font-size: 16px;
+            opacity: 0.9;
+            font-family: 'NTR', sans-serif;
+            font-size: 20px;
+        }
+
+        .search-section {
+            padding: 30px;
+            background: #ffffff;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .search-box-container {
+            display: flex;
+            gap: 12px;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        .input-group {
+            position: relative;
+            flex: 1;
+        }
+
+        .input-group i {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 16px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 14px 16px 14px 48px;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            font-size: 16px;
+            font-family: 'Inter', 'NTR', sans-serif;
+            transition: all 0.2s ease;
+            box-sizing: border-box;
+            background: #fdfdfd;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            background: #ffffff;
+            box-shadow: 0 0 0 4px rgba(30, 58, 138, 0.1);
+        }
+
+        button.search-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0 28px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        button.search-btn:hover {
+            background-color: var(--primary-hover);
+        }
+
+        button.search-btn:active {
+            transform: scale(0.98);
+        }
+
+        button.search-btn:disabled {
+            background-color: #94a3b8;
+            cursor: not-allowed;
+        }
+
+        .results-area {
+            padding: 30px;
+            min-height: 200px;
+        }
+
+        .results-count {
+            margin-bottom: 20px;
+            font-weight: 600;
+            color: var(--text-muted);
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .book-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            padding: 16px 20px;
+            border-radius: 12px;
+            margin-bottom: 14px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .book-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px -3px rgba(0, 0, 0, 0.08);
+            border-color: #cbd5e1;
+        }
+
+        .book-meta {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            flex: 1;
+            padding-right: 15px;
+        }
+
+        .book-cover {
+            width: 60px;
+            height: 85px;
+            object-fit: cover;
+            border-radius: 6px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            background: #e2e8f0;
+            flex-shrink: 0;
+        }
+
+        .no-cover {
+            width: 60px;
+            height: 85px;
+            background: #f1f5f9;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            font-size: 11px;
+            text-align: center;
+            flex-shrink: 0;
+            border: 1px dashed var(--border-color);
+        }
+
+        .book-title {
+            font-size: 17px;
+            font-weight: 600;
+            color: var(--text-main);
+            line-height: 1.4;
+            font-family: 'Tenali Ramakrishna', 'Inter', sans-serif;
+            font-size: 22px; /* Enhanced size for clear Telugu script readability */
+        }
+
+        .action-btn {
+            background-color: var(--success-color);
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        .action-btn:hover {
+            background-color: #047857;
+        }
+
+        .action-btn:disabled {
+            background-color: #cbd5e1;
+            color: #64748b;
+            cursor: not-allowed;
+        }
+
+        .status-message {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 16px;
+            padding: 40px 0;
+        }
+
+        .spinner {
+            border: 3px solid var(--border-color);
+            border-top: 3px solid var(--primary-color);
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 15px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 640px) {
+            .search-box-container {
+                flex-direction: column;
+            }
+            .book-card {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 15px;
+            }
+            .action-btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="main-wrapper">
+    <div class="hero-header">
+        <h1>Sundarayya Vignana Kendram</h1>
+        <p>డిజిటల్ లైబ్రరీ పుస్తకాల అన్వేషణ మరియు డౌన్‌లోడ్</p>
+    </div>
+
+    <div class="search-section">
+        <div class="search-box-container">
+            <div class="input-group">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="query" value="vyakarana" placeholder="పుస్తకం పేరు లేదా కీవర్డ్ నమోదు చేయండి...">
+            </div>
+            <button id="search-btn" class="search-btn" onclick="performSearch()">
+                <i class="fa-solid fa-search"></i> శోధించండి
+            </button>
+        </div>
+    </div>
+
+    <div id="results" class="results-area">
+        <div class="status-message">శోధించడానికి పైభాగంలో కీవర్డ్ టైప్ చేసి 'శోధించండి' నొక్కండి.</div>
+    </div>
+</div>
+
+<script>
+    const searchBtn = document.getElementById('search-btn');
+    const queryInput = document.getElementById('query');
+    const resultsContainer = document.getElementById('results');
+
+    async function performSearch() {
+        const query = queryInput.value.trim();
+        if (!query) {
+            Swal.fire({
+                title: 'గమనిక',
+                text: 'దయచేసి ఏదైనా శోధన పదాన్ని నమోదు చేయండి.',
+                icon: 'warning',
+                confirmButtonColor: '#1e3a8a'
+            });
+            return;
+        }
+
+        resultsContainer.innerHTML = `
+            <div class="status-message">
+                <div class="spinner"></div>
+                పుస్తకాలను వెతుకుతోంది, దయచేసి వేచి ఉండండి...
+            </div>
+        `;
+        searchBtn.disabled = true;
+
+        try {
+            const response = await fetch(`/search?query=${encodeURIComponent(query)}`);
+            const data = await response.json();
+            resultsContainer.innerHTML = '';
+
+            if (!data.results || data.results.length === 0) {
+                resultsContainer.innerHTML = '<div class="status-message">ఈ శోధనకు ఎలాంటి పుస్తకాలు లభించలేదు.</div>';
+                return;
+            }
+
+            const countDiv = document.div;
+            const totalText = document.createElement('div');
+            totalText.className = 'results-count';
+            totalText.innerHTML = `మొత్తం లభించిన పుస్తకాలు: ${data.total || data.results.length}`;
+            resultsContainer.appendChild(totalText);
+
+            data.results.forEach(book => {
+                const card = document.createElement('div');
+                card.className = 'book-card';
+                
+                const coverHtml = book.cover_image 
+                    ? `<img src="${book.cover_image}" alt="Cover" class="book-cover" onerror="this.outerHTML='<div class=\\'no-cover\\'>ప్రతి లేదు</div>'">` 
+                    : `<div class="no-cover">ప్రతి లేదు</div>`;
+
+                card.innerHTML = `
+                    <div class="book-meta">
+                        ${coverHtml}
+                        <div class="book-title">${book.title}</div>
+                    </div>
+                    <button class="action-btn" onclick="savePdfLocally('${book.download_url}', '${book.title.replace(/'/g, "\\'")}', this)">
+                        <i class="fa-solid fa-download"></i> PC కి సేవ్ చేయి
+                    </button>
+                `;
+                resultsContainer.appendChild(card);
+            });
+        } catch (error) {
+            resultsContainer.innerHTML = '<div class="status-message" style="color: #dc2626;">సమాచారాన్ని పొందడంలో లోపం ఏర్పడింది.</div>';
+        } finally {
+            searchBtn.disabled = false;
+        }
+    }
+
+    async function savePdfLocally(url, title, btnElement) {
+        const originalHtml = btnElement.innerHTML;
+        btnElement.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> డౌన్‌లోడ్ అవుతోంది...';
+        btnElement.disabled = true;
+
+        try {
+            const response = await fetch(`/download-book?book_page_url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}`);
+            const data = await response.json();
+
+            if (data.status === "success") {
+                btnElement.innerHTML = '<i class="fa-solid fa-check"></i> సేవ్ చేయబడింది';
+                btnElement.style.backgroundColor = '#1e3a8a';
+
+                Swal.fire({
+                    title: 'డౌన్‌లోడ్ పూర్తయింది!',
+                    text: `"${title}" విజయవంతంగా మీ కంప్యూటర్‌లో సేవ్ చేయబడింది.`,
+                    icon: 'success',
+                    showCancelButton: true,
+                    confirmButtonColor: '#059669',
+                    cancelButtonColor: '#64748b',
+                    confirmButtonText: '<i class="fa-solid fa-book-open"></i> పుస్తకం తెరవండి',
+                    cancelButtonText: 'మూసివేయండి'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        window.open(data.file_url, '_blank');
+                    }
+                });
+
+            } else {
+                Swal.fire({
+                    title: 'విఫలమైంది',
+                    text: data.message,
+                    icon: 'error',
+                    confirmButtonColor: '#dc2626'
+                });
+                btnElement.innerHTML = originalHtml;
+                btnElement.disabled = false;
+            }
+        } catch (error) {
+            Swal.fire({
+                title: 'లోపం',
+                text: 'సర్వర్‌తో కనెక్షన్ విఫలమైంది.',
+                icon: 'error',
+                confirmButtonColor: '#dc2626'
+            });
+            btnElement.innerHTML = originalHtml;
+            btnElement.disabled = false;
+        }
+    }
+
+    queryInput.addEventListener('keypress', (e) => { 
+        if (e.key === 'Enter') performSearch(); 
+    });
+</script>
+
+</body>
+</html>
