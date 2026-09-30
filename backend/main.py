@@ -231,39 +231,46 @@ class ManasuFoundationScraper:
 
     def search(self, query: str):
         all_books = []
-        # Step 1 & 2: Base URL with keyword input
         encoded_query = urllib.parse.quote(query.strip())
-        url = f"{self.base_domain}/books/?wbg_title_s={encoded_query}&wbg_published_on_s=&wbg_author_s="
-
-        try:
-            session = requests.Session()
-            session.headers.update(self.headers)
-            response = session.get(url, timeout=20)
-            
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.text, "html.parser")
+        page = 1  # మొదటి పేజీ నుండి స్టార్ట్ చేస్తాం
+        
+        session = requests.Session()
+        session.headers.update(self.headers)
+        
+        while True:
+            # పేజీ నంబర్‌ని బట్టి URL మార్చడం
+            if page == 1:
+                url = f"{self.base_domain}/books/?wbg_title_s={encoded_query}&wbg_published_on_s=&wbg_author_s="
+            else:
+                url = f"{self.base_domain}/books/page/{page}/?wbg_title_s={encoded_query}&wbg_published_on_s=&wbg_author_s="
                 
-                # Step 3: Fetch books from the table/grid items
+            try:
+                response = session.get(url, timeout=20)
+                
+                # పేజీ దొరకకపోతే (404) లేదా ఎర్రర్ వస్తే లూప్ ఆపేస్తాం
+                if response.status_code != 200:
+                    break
+                    
+                soup = BeautifulSoup(response.text, "html.parser")
                 items = soup.find_all("div", class_="wbg-item")
                 
+                # ఈ పేజీలో అసలు పుస్తకాలు లేకపోతే (చివరి పేజీకి వచ్చేస్తే) లూప్ ఆపేస్తాం
+                if not items:
+                    break
+                    
                 for item in items:
                     a_tag = item.find("a", class_="wgb-item-link")
                     if not a_tag:
                         continue
                     
-                    # Book Details Page URL
                     book_page_url = a_tag.get("href")
                     
-                    # Image and Title
                     img_tag = a_tag.find("img")
                     title_text = img_tag.get("alt", "").strip() if img_tag else a_tag.get_text(strip=True)
                     cover_image = img_tag.get("src", "") if img_tag else ""
                     
-                    # Author Name
                     author_span = item.find("span", class_="loop-author")
                     author_name = author_span.get_text(strip=True) if author_span else ""
-                    
-                    # Cleaning up author name formatting (removing special chars like '&nbsp;')
                     author_name = author_name.replace("&nbsp;", "").strip()
                     
                     full_title = f"{title_text} ({author_name})" if author_name else title_text
@@ -275,9 +282,12 @@ class ManasuFoundationScraper:
                         "source": "Manasu Foundation"
                     })
                     
-        except Exception as e:
-            print(f"Manasu Foundation Search Exception: {e}")
-            
+                page += 1  # ఒక పేజీ అయిపోగానే తర్వాతి పేజీకి వెళ్లడానికి నంబర్ పెంచుతాం
+                
+            except Exception as e:
+                print(f"Manasu Foundation Search Exception on page {page}: {e}")
+                break  # ఏదైనా టెక్నికల్ ఎర్రర్ వస్తే ఇన్ఫినిట్ లూప్ రాకుండా ఆపేస్తాం
+                
         return all_books
 
     def download(self, book_page_url: str, title: str, filepath: str):
