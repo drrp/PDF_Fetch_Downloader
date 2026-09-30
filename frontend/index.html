@@ -6,6 +6,11 @@
     <title>Telugu Digital Library Dashboard</title>
 
     <!-- Google Fonts -->
+    <link
+      rel="icon"
+      type="image/png"
+      href="https://auchithyam.com/images/LOGO.jpg"
+    />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- CSS స్టైల్ షీట్ లింక్ -->
@@ -28,6 +33,30 @@
         <div class="header-title">
           <h1>Telugu Digital Library Hub</h1>
           <p>నాలుగు ప్రధాన గ్రంథాలయాల ఏకైక అన్వేషణ వేదిక</p>
+        </div>
+
+        <!-- హెడర్ లో లాగిన్ సెక్షన్ -->
+        <div id="auth-section">
+          <a
+            href="/login/google"
+            id="google-login-btn"
+            class="google-login-btn"
+          >
+            <i class="fa-brands fa-google"></i> Google తో లాగిన్ అవ్వండి
+          </a>
+
+          <!-- లాగిన్ అయ్యాక కనిపించే ప్రొఫైల్ కార్డ్ (మొత్తానికి హిడెన్ గా ఉంటుంది) -->
+          <div
+            id="user-profile-card"
+            class="user-profile-card"
+            style="display: none"
+          >
+            <img id="user-avatar" src="" alt="Profile" class="user-avatar" />
+            <div class="user-details">
+              <span id="user-name" class="user-name"></span>
+              <a href="/logout" class="logout-link">లాగౌట్</a>
+            </div>
+          </div>
         </div>
         <div class="header-stats">
           <div class="stat-card">
@@ -105,11 +134,14 @@
             <div>
               <div><strong>శోధన సూచనలు (Search Tips):</strong></div>
               <div>
-              <ul>
-              <li>Internet Archive నుండి ఏ భాషలోనైనా వెతకవచ్చు</li>
-              <li>SVK Library &amp; TTD Ebooks ఇంగ్లీష్ లిపిలో మాత్రమే వెతకగలరు</li>
-              <li>Manasu Foundation తెలుగు లిపిలో&nbsp;మాత్రమే వెతకగలరు</li>
-              </ul>
+                <ul>
+                  <li>Internet Archive నుండి ఏ భాషలోనైనా వెతకవచ్చు</li>
+                  <li>
+                    SVK Library &amp; TTD Ebooks ఇంగ్లీష్ లిపిలో మాత్రమే
+                    వెతకగలరు
+                  </li>
+                  <li>Manasu Foundation తెలుగు లిపిలో&nbsp;మాత్రమే వెతకగలరు</li>
+                </ul>
               </div>
             </div>
           </div>

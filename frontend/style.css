@@ -449,6 +449,135 @@ button.search-btn:hover {
     font-weight: 600;
 }
 
+
+
+/* =========================================
+   HEADER & USER PROFILE SECTION STYLES
+========================================= */
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 24px;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+#auth-section {
+    display: flex;
+    align-items: center;
+    margin-left: auto; /* కుడి వైపుకు నెట్టడానికి */
+    margin-right: 20px;
+}
+
+/* User Profile Card Styling */
+.user-profile-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #f8fafc;
+    padding: 6px 16px 6px 6px; /* ఫోటో వైపు తక్కువ ప్యాడింగ్ */
+    border-radius: 50px; /* పిల్ షేప్ (Pill shape) */
+    border: 1px solid #e2e8f0;
+    transition: all 0.3s ease;
+}
+
+.user-profile-card:hover {
+    background: #f1f5f9;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.user-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #3b82f6; /* బ్లూ కలర్ రింగ్ */
+    padding: 2px;
+    background: #ffffff;
+}
+
+.user-details {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.user-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.logout-link {
+    font-size: 12px;
+    font-weight: 600;
+    color: #ef4444; /* రెడ్ కలర్ */
+    text-decoration: none;
+    margin-top: 2px;
+    transition: color 0.2s;
+}
+
+.logout-link:hover {
+    color: #b91c1c;
+    text-decoration: underline;
+}
+
+/* Stats Card Styling */
+.header-stats {
+    display: flex;
+    align-items: center;
+}
+
+.stat-card {
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    border: 1px solid #bfdbfe;
+    padding: 10px 20px;
+    border-radius: 12px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.1);
+}
+
+.stat-card .number {
+    font-size: 22px;
+    font-weight: 800;
+    color: #1d4ed8;
+}
+
+.stat-card .label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #3b82f6;
+}
+
+/* Google Login Button in Header */
+.google-login-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background-color: #ffffff;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+    padding: 10px 18px;
+    border-radius: 50px;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    transition: all 0.2s ease;
+}
+
+.google-login-btn:hover {
+    background-color: #f8fafc;
+    border-color: #94a3b8;
+}
 @keyframes spin {
   0% {
     transform: rotate(0deg);

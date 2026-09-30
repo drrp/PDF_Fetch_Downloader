@@ -6,3 +6,6 @@ pypdf
 reportlab
 pydantic
 gdown
+authlib
+itsdangerous
+httpx

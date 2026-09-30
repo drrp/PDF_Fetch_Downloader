@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="te">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>అడ్మిన్ డ్యాష్‌‌బోర్డ్ - TDL</title>
+    <link rel="icon" type="image/png" href="https://auchithyam.com/images/LOGO.jpg" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            margin: 0; padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+        .admin-container {
+            max-width: 1000px;
+            margin: 40px auto;
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+        }
+        .admin-header {
+            background: #0f172a;
+            color: #ffffff;
+            padding: 24px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .admin-header h2 { margin: 0; font-size: 22px; }
+        .admin-header p { margin: 5px 0 0 0; color: #94a3b8; font-size: 14px; }
+        .back-btn {
+            background: #3b82f6; color: white;
+            padding: 8px 16px; border-radius: 8px;
+            text-decoration: none; font-weight: 600; font-size: 14px;
+            transition: 0.2s;
+        }
+        .back-btn:hover { background: #2563eb; }
+        .content { padding: 30px; }
+        
+        /* Stats Styles */
+        .stats-bar {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 40px;
+        }
+        .stat-box {
+            padding: 20px; border-radius: 12px; display: flex; align-items: center; justify-content: space-between;
+        }
+        .stat-box h3 { margin: 0; font-size: 28px; }
+        .stat-box span { font-size: 14px; font-weight: 600; }
+        .stat-box i { font-size: 36px; opacity: 0.5; }
+
+        /* Section Titles */
+        .section-title {
+            color: #1e293b; font-size: 18px; margin: 40px 0 15px 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;
+        }
+
+        /* User List Styles */
+        .user-list {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px;
+        }
+        .user-card {
+            display: flex; align-items: center; justify-content: space-between;
+            background: #ffffff; border: 1px solid #e2e8f0;
+            padding: 16px; border-radius: 12px;
+        }
+        .user-info { display: flex; align-items: center; gap: 15px; }
+        .user-info img {
+            width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid #e2e8f0;
+        }
+        .user-name { font-weight: 700; color: #0f172a; margin: 0 0 4px 0; font-size: 15px;}
+        .user-email { color: #64748b; font-size: 13px; margin: 0; }
+    </style>
+</head>
+<body>
+
+<div class="admin-container">
+    <div class="admin-header">
+        <div>
+            <h2><i class="fa-solid fa-shield-halved"></i> అడ్మిన్ డ్యాష్‌బోర్డ్</h2>
+            <p>అప్లికేషన్ స్టాటిస్టిక్స్ మరియు యూజర్ యాక్టివిటీ రిపోర్ట్</p>
+        </div>
+        <a href="/" class="back-btn"><i class="fa-solid fa-arrow-left"></i> హోమ్‌కి వెళ్లండి</a>
+    </div>
+
+    <div class="content">
+        <!-- 1. గణాంకాలు (Statistics Cards) -->
+        <div class="stats-bar">
+            <div class="stat-box" style="background: #eff6ff; border: 1px solid #bfdbfe;">
+                <div>
+                    <h3 id="total-users" style="color: #1d4ed8;">0</h3>
+                    <span style="color: #3b82f6;">మొత్తం యూజర్లు</span>
+                </div>
+                <i class="fa-solid fa-users" style="color: #93c5fd;"></i>
+            </div>
+            
+            <div class="stat-box" style="background: #f5f3ff; border: 1px solid #ddd6fe;">
+                <div>
+                    <h3 id="total-searches" style="color: #6d28d9;">0</h3>
+                    <span style="color: #8b5cf6;">మొత్తం శోధనలు</span>
+                </div>
+                <i class="fa-solid fa-magnifying-glass" style="color: #c4b5fd;"></i>
+            </div>
+
+            <div class="stat-box" style="background: #ecfdf5; border: 1px solid #a7f3d0;">
+                <div>
+                    <h3 id="total-downloads" style="color: #047857;">0</h3>
+                    <span style="color: #10b981;">డౌన్‌లోడ్స్</span>
+                </div>
+                <i class="fa-solid fa-cloud-arrow-down" style="color: #6ee7b7;"></i>
+            </div>
+
+            <div class="stat-box" style="background: #fff7ed; border: 1px solid #fed7aa;">
+                <div>
+                    <h3 id="total-actions" style="color: #c2410c;">0</h3>
+                    <span style="color: #f97316;">మొత్తం యాక్టివిటీస్</span>
+                </div>
+                <i class="fa-solid fa-bolt" style="color: #fdba74;"></i>
+            </div>
+        </div>
+
+        <!-- 2. లాగిన్ అయిన యూజర్ల వివరాలు -->
+        <h3 class="section-title"><i class="fa-solid fa-user-check"></i> లాగిన్ అయిన యూజర్ల వివరాలు</h3>
+        <div id="users-container" class="user-list">
+            <div style="text-align: center; color: #64748b; padding: 20px; width: 100%;">లోడ్ అవుతోంది...</div>
+        </div>
+
+        <!-- 3. యూజర్ల యాక్టివిటీ హిస్టరీ -->
+        <h3 class="section-title"><i class="fa-solid fa-clock-rotate-left"></i> యూజర్ల యాక్టివిటీ హిస్టరీ (Search & Downloads)</h3>
+        <div id="activities-container" style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="text-align: center; color: #64748b; padding: 20px;">లోడ్ అవుతోంది...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    async function loadAdminData() {
+        try {
+            const response = await fetch('/admin/users-json');
+            const data = await response.json();
+            
+            if (data.error) {
+                document.querySelector('.content').innerHTML = `<div style="color: #ef4444; text-align: center; font-weight: 600; padding: 40px;">${data.error}</div>`;
+                return;
+            }
+            
+            // 1. స్టాటిస్టిక్స్ అప్‌డేట్ చేయడం
+            document.getElementById('total-users').innerText = data.total_users || 0;
+            if (data.stats) {
+                document.getElementById('total-searches').innerText = data.stats.searches || 0;
+                document.getElementById('total-downloads').innerText = data.stats.downloads || 0;
+                document.getElementById('total-actions').innerText = data.stats.total_actions || 0;
+            }
+
+            // 2. యూజర్ల జాబితాను చూపించడం
+            const usersContainer = document.getElementById('users-container');
+            usersContainer.innerHTML = '';
+            
+            if (!data.users || data.users.length === 0) {
+                usersContainer.innerHTML = `<div style="text-align: center; color: #64748b; width: 100%;">ఇంకా ఎవరూ లాగిన్ కాలేదు.</div>`;
+            } else {
+                const reversedUsers = [...data.users].reverse();
+                reversedUsers.forEach(user => {
+                    usersContainer.innerHTML += `
+                        <div class="user-card">
+                            <div class="user-info">
+                                <img src="${user.picture}" alt="Profile">
+                                <div>
+                                    <h4 class="user-name">${user.name}</h4>
+                                    <p class="user-email">${user.email}</p>
+                                </div>
+                            </div>
+                            <div style="background: #dcfce7; color: #166534; padding: 6px 12px; border-radius: 50px; font-size: 12px; font-weight: 600;">
+                                <i class="fa-solid fa-check-circle"></i>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            // 3. యాక్టివిటీస్ (Search & Download History) డిస్‌ప్లే చేయడం
+            const actContainer = document.getElementById('activities-container');
+            actContainer.innerHTML = '';
+            
+            if (!data.activities || data.activities.length === 0) {
+                actContainer.innerHTML = `<div style="text-align: center; color: #64748b; padding: 20px; border: 1px dashed #cbd5e1; border-radius: 10px;">ఇంకా ఎటువంటి యాక్టివిటీ లేదు.</div>`;
+            } else {
+                data.activities.forEach(act => {
+                    const icon = act.action === 'Search' 
+                        ? '<i class="fa-solid fa-magnifying-glass" style="color: #3b82f6;"></i>' 
+                        : '<i class="fa-solid fa-download" style="color: #10b981;"></i>';
+                    const badgeStyle = act.action === 'Search' 
+                        ? 'background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;' 
+                        : 'background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0;';
+
+                    actContainer.innerHTML += `
+                        <div style="display: flex; align-items: center; justify-content: space-between; background: #fff; padding: 15px 20px; border-radius: 12px; border: 1px solid #e2e8f0; transition: 0.2s;">
+                            <div style="display: flex; align-items: center; gap: 15px;">
+                                <img src="${act.picture}" alt="" style="width: 40px; height: 40px; border-radius: 50%; border: 2px solid #f1f5f9;">
+                                <div>
+                                    <h4 style="margin: 0; font-size: 15px; color: #0f172a;">${act.name}</h4>
+                                    <p style="margin: 5px 0 0 0; font-size: 14px; color: #475569;">
+                                        ${icon} <span style="font-weight: 600; margin-left: 4px;">${act.action}:</span> ${act.details}
+                                    </p>
+                                </div>
+                            </div>
+                            <div style="text-align: right;">
+                                <span style="font-size: 12px; color: #94a3b8; display: block; margin-bottom: 6px;">${act.time}</span>
+                                <span style="padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; ${badgeStyle}">${act.action}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+        } catch (error) {
+            console.error("Error loading admin data:", error);
+            document.querySelector('.content').innerHTML = `<div style="color: #ef4444; text-align: center; padding: 20px;">డేటాను లోడ్ చేయడంలో లోపం ఏర్పడింది.</div>`;
+        }
+    }
+    
+    window.onload = loadAdminData;
+</script>
+
+</body>
+</html>

@@ -8,6 +8,49 @@ const resultsContainer = document.getElementById("results");
 const statTotal = document.getElementById("stat-total");
 const resultsCountLabel = document.getElementById("results-count-label");
 
+// ప్రస్తుత యూజర్ లాగిన్ వివరాలను సర్వర్ నుండి తెచ్చుకొని స్క్రీన్‌పై చూపించే పర్‌ఫెక్ట్ ఫంక్షన్
+async function checkLoginStatus() {
+  try {
+    const response = await fetch('/api/current-user');
+    const data = await response.json();
+
+    const authSection = document.getElementById("auth-section");
+    const loginBtn = document.getElementById("google-login-btn");
+    
+    if (data.logged_in) {
+      if (loginBtn) {
+        loginBtn.style.display = "none"; // లాగిన్ బటన్‌ను పూర్తిగా దాచిపెట్టడం
+      }
+
+      // ఒకవేళ ప్రొఫైల్ కార్డ్ ఆల్రెడీ లేకపోతే క్రియేట్ చేయడం
+      if (authSection && !document.getElementById("user-profile-card-dynamic")) {
+        const profileDiv = document.createElement("div");
+        profileDiv.id = "user-profile-card-dynamic";
+        profileDiv.style.cssText = "display: flex; align-items: center; gap: 12px; background: #ffffff; padding: 6px 14px; border-radius: 10px; border: 1px solid #cbd5e1; box-shadow: 0 2px 4px rgba(0,0,0,0.05);";
+        
+        profileDiv.innerHTML = `
+          <img src="${data.picture || 'https://via.placeholder.com/36'}" alt="Profile" style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid #2563eb;">
+          <div style="display: flex; flex-direction: column; text-align: left;">
+              <span style="font-size: 14px; font-weight: 600; color: #0f172a; line-height: 1.2;">${data.name}</span>
+              <a href="/logout" style="font-size: 11px; color: #dc2626; text-decoration: none; font-weight: 500; margin-top: 2px;">లాగౌట్ (Logout)</a>
+          </div>
+        `;
+        
+        authSection.appendChild(profileDiv);
+      }
+    }
+  } catch (e) {
+    console.error("Login status check error:", e);
+  }
+}
+
+// ---------------------------------------------------------
+// పేజీ లోడ్ అవ్వగానే పై ఫంక్షన్‌ను రన్ చేసే కోడ్ (ఇదే మిస్ అయింది!)
+window.addEventListener("DOMContentLoaded", () => {
+  checkLoginStatus();
+});
+// ---------------------------------------------------------
+
 let allSearchResults = []; // మొత్తం ఫలితాలు స్టోర్ చేసుకోవడానికి
 let currentPage = 1;
 const itemsPerPage = 10;
