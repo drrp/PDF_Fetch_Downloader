@@ -9,3 +9,4 @@ gdown
 authlib
 itsdangerous
 httpx
+python-dotenv
