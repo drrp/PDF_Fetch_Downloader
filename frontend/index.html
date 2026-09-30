@@ -38,6 +38,13 @@
         --manasu-badge-txt: #166534;
         --ttd-badge-bg: #ffedd5;
         --ttd-badge-txt: #c2410c;
+        --shodhganga-badge-bg: #e0e7ff;
+        --shodhganga-badge-txt: #3730a3;
+      }
+
+      .badge-shodhganga {
+        background: #e0e7ff;
+        color: #3730a3;
       }
 
       body {
@@ -420,6 +427,10 @@
             <input type="checkbox" id="chk-ttd" />
             <span>TTD Ebooks</span>
           </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="chk-shodhganga" checked />
+            <span>Shodhganga</span>
+          </label>
         </div>
       </div>
 
@@ -443,6 +454,7 @@
       const chkIa = document.getElementById("chk-ia");
       const chkManasu = document.getElementById("chk-manasu");
       const chkTtd = document.getElementById("chk-ttd");
+      const chkShodhganga = document.getElementById("chk-shodhganga");
       const resultsContainer = document.getElementById("results");
       const statTotal = document.getElementById("stat-total");
       const resultsCountLabel = document.getElementById("results-count-label");
@@ -453,6 +465,7 @@
         const useIa = chkIa.checked;
         const useManasu = chkManasu.checked;
         const useTtd = chkTtd.checked;
+        const useShodhganga = chkShodhganga ? chkShodhganga.checked : true;
 
         if (!query) {
           Swal.fire({
@@ -464,7 +477,7 @@
           return;
         }
 
-        if (!useSvk && !useIa && !useManasu && !useTtd) {
+        if (!useSvk && !useIa && !useManasu && !useTtd && !useShodhganga) {
           Swal.fire({
             title: "గమనిక",
             text: "దయచేసి కనీసం ఒక లైబ్రరీ మూలాన్ని ఎంచుకోండి.",
@@ -473,6 +486,8 @@
           });
           return;
         }
+
+        const currentSearchId = ++searchRequestSequence;
 
         resultsContainer.innerHTML = `
             <div class="status-message">
@@ -484,9 +499,14 @@
 
         try {
           const response = await fetch(
-            `/search?query=${encodeURIComponent(query)}&use_svk=${useSvk}&use_ia=${useIa}&use_manasu=${useManasu}&use_ttd=${useTtd}`,
+            `/search?query=${encodeURIComponent(query)}&use_svk=${useSvk}&use_ia=${useIa}&use_manasu=${useManasu}&use_ttd=${useTtd}&use_shodhganga=${useShodhganga}`,
           );
           const data = await response.json();
+
+          if (currentSearchId !== searchRequestSequence) {
+            return;
+          }
+
           resultsContainer.innerHTML = "";
 
           const totalBooks =
@@ -510,9 +530,9 @@
 
             let badgeClass = "badge-svk";
             if (book.source === "Internet Archive") badgeClass = "badge-ia";
-            if (book.source === "Manasu Foundation")
-              badgeClass = "badge-manasu";
+            if (book.source === "Manasu Foundation") badgeClass = "badge-manasu";
             if (book.source === "TTD Ebooks") badgeClass = "badge-ttd";
+            if (book.source === "Shodhganga") badgeClass = "badge-shodhganga";
 
             card.innerHTML = `
                     <div class="book-info">
@@ -529,10 +549,14 @@
             resultsContainer.appendChild(card);
           });
         } catch (error) {
-          resultsContainer.innerHTML =
-            '<div class="status-message" style="color: #dc2626;">సమాచారాన్ని పొందడంలో లోపం ఏర్పడింది.</div>';
+          if (currentSearchId === searchRequestSequence) {
+            resultsContainer.innerHTML =
+              '<div class="status-message" style="color: #dc2626;">సమాచారాన్ని పొందడంలో లోపం ఏర్పడింది.</div>';
+          }
         } finally {
-          searchBtn.disabled = false;
+          if (currentSearchId === searchRequestSequence) {
+            searchBtn.disabled = false;
+          }
         }
       }
 
@@ -590,6 +614,11 @@
         try {
           const response = await fetch(
             `/download-book?book_page_url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}&source=${encodeURIComponent(source)}`,
+            {
+              signal: window.currentFetchController
+                ? window.currentFetchController.signal
+                : undefined,
+            },
           );
           const data = await response.json();
 
@@ -623,6 +652,26 @@
                 window.open(data.file_url, "_blank");
               }
             });
+          } else if (data.status === "gdrive_restricted") {
+            btnElement.innerHTML =
+              '<i class="fa-brands fa-google-drive"></i> డ్రైవ్‌లో తెరవండి';
+            btnElement.style.backgroundColor = "#d97706";
+
+            Swal.fire({
+              title: "గూగుల్ లాగిన్ అవసరం",
+              text: "ఈ పుస్తకానికి Google ఖాతా అనుమతి అవసరం. దయచేసి దీన్ని నేరుగా డ్రైవ్‌లో తెరవండి.",
+              icon: "info",
+              showCancelButton: true,
+              confirmButtonColor: "#2563eb",
+              cancelButtonColor: "#64748b",
+              confirmButtonText:
+                '<i class="fa-solid fa-arrow-up-right-from-square"></i> డ్రైవ్‌లో తెరవండి',
+              cancelButtonText: "మూసివేయండి",
+            }).then((res) => {
+              if (res.isConfirmed) {
+                window.open(data.url, "_blank");
+              }
+            });
           } else {
             Swal.fire({
               title: "విఫలమైంది",
@@ -632,6 +681,8 @@
             });
           }
         } catch (error) {
+          if (error.name === "AbortError") return;
+
           clearInterval(window.downloadProgressInterval);
           Swal.fire({
             title: "లోపం",
@@ -642,114 +693,10 @@
         }
       }
 
-      // Global tracking variables for search and request cancellation
       let currentFetchController = null;
       let downloadProgressInterval = null;
-      let searchRequestSequence = 0; // Tracks active search session
+      let searchRequestSequence = 0;
 
-      async function performSearch() {
-        const query = queryInput.value.trim();
-        const useSvk = chkSvk.checked;
-        const useIa = chkIa.checked;
-        const useManasu = chkManasu.checked;
-        const useTtd = chkTtd.checked;
-
-        if (!query) {
-          Swal.fire({
-            title: "గమనిక",
-            text: "దయచేసి శోధన పదాన్ని నమోదు చేయండి.",
-            icon: "warning",
-            confirmButtonColor: "#1e3a8a",
-          });
-          return;
-        }
-
-        if (!useSvk && !useIa && !useManasu && !useTtd) {
-          Swal.fire({
-            title: "గమనిక",
-            text: "దయచేసి కనీసం ఒక లైబ్రరీ మూలాన్ని ఎంచుకోండి.",
-            icon: "warning",
-            confirmButtonColor: "#1e3a8a",
-          });
-          return;
-        }
-
-        // Increment request sequence so any old pending responses are ignored
-        const currentSearchId = ++searchRequestSequence;
-
-        resultsContainer.innerHTML = `
-            <div class="status-message">
-                <div class="spinner"></div>
-                ఎంచుకున్న లైబ్రరీల నుండి పుస్తకాలను వెతుకుతోంది...
-            </div>
-        `;
-        searchBtn.disabled = true;
-
-        try {
-          const response = await fetch(
-            `/search?query=${encodeURIComponent(query)}&use_svk=${useSvk}&use_ia=${useIa}&use_manasu=${useManasu}&use_ttd=${useTtd}`,
-          );
-          const data = await response.json();
-
-          // If a reset or a newer search was triggered while waiting, ignore this response
-          if (currentSearchId !== searchRequestSequence) {
-            return;
-          }
-
-          resultsContainer.innerHTML = "";
-
-          const totalBooks =
-            data.total || (data.results ? data.results.length : 0);
-          statTotal.innerText = totalBooks;
-          resultsCountLabel.innerText = `మొత్తం: ${totalBooks} పుస్తకాలు`;
-
-          if (!data.results || data.results.length === 0) {
-            resultsContainer.innerHTML =
-              '<div class="status-message">ఈ శోధనకు ఎలాంటి పుస్తకాలు లభించలేదు.</div>';
-            return;
-          }
-
-          data.results.forEach((book) => {
-            const card = document.createElement("div");
-            card.className = "book-card";
-
-            const coverHtml = book.cover_image
-              ? `<img src="${book.cover_image}" alt="Cover" class="book-cover" onerror="this.outerHTML='<div class=\\'no-cover\\'>ప్రతి లేదు</div>'">`
-              : `<div class="no-cover">ప్రతి లేదు</div>`;
-
-            let badgeClass = "badge-svk";
-            if (book.source === "Internet Archive") badgeClass = "badge-ia";
-            if (book.source === "Manasu Foundation")
-              badgeClass = "badge-manasu";
-            if (book.source === "TTD Ebooks") badgeClass = "badge-ttd";
-
-            card.innerHTML = `
-                    <div class="book-info">
-                        ${coverHtml}
-                        <div>
-                            <span class="badge ${badgeClass}">${book.source}</span>
-                            <div class="book-title">${book.title}</div>
-                        </div>
-                    </div>
-                    <button class="action-btn" onclick="savePdfLocally('${book.download_url}', '${book.title.replace(/'/g, "\\'")}', '${book.source}', this)">
-                        <i class="fa-solid fa-download"></i> సేవ్ చేయి
-                    </button>
-                `;
-            resultsContainer.appendChild(card);
-          });
-        } catch (error) {
-          if (currentSearchId === searchRequestSequence) {
-            resultsContainer.innerHTML =
-              '<div class="status-message" style="color: #dc2626;">సమాచారాన్ని పొందడంలో లోపం ఏర్పడింది.</div>';
-          }
-        } finally {
-          if (currentSearchId === searchRequestSequence) {
-            searchBtn.disabled = false;
-          }
-        }
-      }
-
-      // Function to handle the app reset action cleanly
       function confirmAppReset() {
         Swal.fire({
           title: "అప్లికేషన్‌ను రీసెట్ చేయాలా?",
@@ -762,35 +709,29 @@
           cancelButtonText: "రద్దు చేయు",
         }).then(async (result) => {
           if (result.isConfirmed) {
-            // 1. Invalidate any in-flight searches instantly
             searchRequestSequence++;
-
-            // 2. Clear active progress timers
             if (downloadProgressInterval) {
               clearInterval(downloadProgressInterval);
             }
-
-            // 3. Abort ongoing fetch requests if active
             if (currentFetchController) {
               currentFetchController.abort();
             }
 
-            // 4. Notify backend to clear temporary cache/download files
             try {
               await fetch("/reset-app", { method: "POST" });
             } catch (e) {
               console.error("Backend reset notice failed", e);
             }
 
-            // 5. Reset UI fields, stats, counters, and checkboxes
             document.getElementById("query").value = "";
             statTotal.innerText = "0";
             resultsCountLabel.innerText = "";
 
             document.getElementById("chk-svk").checked = true;
             document.getElementById("chk-ia").checked = true;
-            document.getElementById("chk-manasu").checked = true;
+            document.getElementById("chk-manasu").checked = false;
             document.getElementById("chk-ttd").checked = false;
+            document.getElementById("chk-shodhganga").checked = true;
 
             resultsContainer.innerHTML = `
               <div class="status-message">
