@@ -9,6 +9,7 @@ const statTotal = document.getElementById("stat-total");
 const resultsCountLabel = document.getElementById("results-count-label");
 
 // ప్రస్తుత యూజర్ లాగిన్ వివరాలను సర్వర్ నుండి తెచ్చుకొని స్క్రీన్‌పై చూపించే పర్‌ఫెక్ట్ ఫంక్షన్
+// ప్రస్తుత యూజర్ లాగిన్ వివరాలను సర్వర్ నుండి తెచ్చుకొని స్క్రీన్‌పై చూపించే పర్‌ఫెక్ట్ ఫంక్షన్
 async function checkLoginStatus() {
   try {
     const response = await fetch('/api/current-user');
@@ -34,6 +35,11 @@ async function checkLoginStatus() {
               <span style="font-size: 14px; font-weight: 600; color: #0f172a; line-height: 1.2;">${data.name}</span>
               <a href="/logout" style="font-size: 11px; color: #dc2626; text-decoration: none; font-weight: 500; margin-top: 2px;">లాగౌట్ (Logout)</a>
           </div>
+          
+          <!-- 🌟 నా ప్రొఫైల్ బటన్ 🌟 -->
+          <a href="/profile" style="background: #3b82f6; color: white; padding: 6px 12px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-flex; align-items: center; gap: 5px; font-size: 13px; margin-left: 5px;">
+              <i class="fa-solid fa-user"></i> నా ప్రొఫైల్
+          </a>
         `;
         
         authSection.appendChild(profileDiv);

@@ -115,7 +115,7 @@ class InternetArchiveScraper:
                 
             download_url = f"{self.download_base_url}/{identifier}/{pdf_filename}"
             
-            res = session.get(download_url, stream=True, timeout=30)
+            res = session.get(download_url, stream=True, timeout=(15, 300))
             if res.status_code == 200:
                 with open(filepath, "wb") as f:
                     for chunk in res.iter_content(chunk_size=32768):

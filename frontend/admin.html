@@ -3,225 +3,247 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>అడ్మిన్ డ్యాష్‌‌బోర్డ్ - TDL</title>
-    <link rel="icon" type="image/png" href="https://auchithyam.com/images/LOGO.jpg" />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>Admin Dashboard - Telugu Digital Library</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body {
-            margin: 0; padding: 0;
-            font-family: 'Inter', sans-serif;
-            background-color: #f8fafc;
-        }
-        .admin-container {
-            max-width: 1000px;
-            margin: 40px auto;
-            background: #ffffff;
-            border-radius: 16px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
-            overflow: hidden;
-        }
-        .admin-header {
-            background: #0f172a;
-            color: #ffffff;
-            padding: 24px 30px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .admin-header h2 { margin: 0; font-size: 22px; }
-        .admin-header p { margin: 5px 0 0 0; color: #94a3b8; font-size: 14px; }
-        .back-btn {
-            background: #3b82f6; color: white;
-            padding: 8px 16px; border-radius: 8px;
-            text-decoration: none; font-weight: 600; font-size: 14px;
-            transition: 0.2s;
-        }
-        .back-btn:hover { background: #2563eb; }
-        .content { padding: 30px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f8fafc; margin: 0; padding: 20px; color: #333; }
+        .header { display: flex; justify-content: space-between; align-items: center; background: #1e3a8a; color: white; padding: 15px 30px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .header h1 { margin: 0; font-size: 22px; }
+        .btn-home { background: #3b82f6; color: white; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; transition: 0.3s; }
+        .btn-home:hover { background: #2563eb; }
+
+        .header-buttons { display: flex; gap: 15px; }
+        .btn-logout { background: #ef4444; color: white; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; transition: 0.3s; display: flex; align-items: center; gap: 8px; border: 1px solid #dc2626; }
+        .btn-logout:hover { background: #dc2626; }
         
-        /* Stats Styles */
-        .stats-bar {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 40px;
-        }
-        .stat-box {
-            padding: 20px; border-radius: 12px; display: flex; align-items: center; justify-content: space-between;
-        }
-        .stat-box h3 { margin: 0; font-size: 28px; }
-        .stat-box span { font-size: 14px; font-weight: 600; }
-        .stat-box i { font-size: 36px; opacity: 0.5; }
+        /* Stats & Popular Cards */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 25px; }
+        .stat-card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; border-bottom: 4px solid #1e3a8a; }
+        .stat-card h3 { margin: 0; font-size: 32px; color: #1e3a8a; }
+        .stat-card p { margin: 5px 0 0 0; color: #64748b; font-weight: 600; }
+        
+        .popular-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px; }
+        .popular-card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .popular-card h3 { margin: 0 0 15px 0; font-size: 16px; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; }
+        .popular-list { list-style: none; padding: 0; margin: 0; }
+        .popular-list li { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+        .popular-list li span.badge { background: #e0e7ff; color: #4338ca; padding: 2px 8px; border-radius: 12px; font-weight: bold; font-size: 12px; }
 
-        /* Section Titles */
-        .section-title {
-            color: #1e293b; font-size: 18px; margin: 40px 0 15px 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;
-        }
+        /* Main Content Grid */
+        .main-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 20px; }
+        .section-title { font-size: 18px; color: #1e293b; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
+        
+        /* Users List */
+        .users-list { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); max-height: 600px; overflow-y: auto; }
+        .user-card { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #e2e8f0; cursor: pointer; transition: 0.2s; border-radius: 8px; }
+        .user-card:hover { background: #f8fafc; transform: translateX(5px); border-left: 4px solid #3b82f6; }
+        .user-card.active-user { background: #eff6ff; border-left: 4px solid #1d4ed8; }
+        .user-info { display: flex; gap: 12px; align-items: center; }
+        .user-info img { width: 45px; height: 45px; border-radius: 50%; border: 2px solid #e2e8f0; }
+        .user-name { margin: 0; font-size: 15px; color: #0f172a; }
+        .user-email { margin: 2px 0 0 0; font-size: 12px; color: #64748b; }
+        .status-badge { padding: 4px 10px; border-radius: 50px; font-size: 11px; font-weight: 600; }
+        .status-online { background: #dcfce7; color: #166534; }
+        .status-offline { background: #f1f5f9; color: #64748b; }
 
-        /* User List Styles */
-        .user-list {
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px;
-        }
-        .user-card {
-            display: flex; align-items: center; justify-content: space-between;
-            background: #ffffff; border: 1px solid #e2e8f0;
-            padding: 16px; border-radius: 12px;
-        }
-        .user-info { display: flex; align-items: center; gap: 15px; }
-        .user-info img {
-            width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid #e2e8f0;
-        }
-        .user-name { font-weight: 700; color: #0f172a; margin: 0 0 4px 0; font-size: 15px;}
-        .user-email { color: #64748b; font-size: 13px; margin: 0; }
+        /* Activity Feed */
+        .activity-feed { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); max-height: 600px; overflow-y: auto; }
+        .activity-item { display: flex; justify-content: space-between; align-items: center; padding: 15px; border-bottom: 1px solid #f1f5f9; }
+        .activity-item:last-child { border-bottom: none; }
+        .act-details { font-size: 14px; color: #334155; }
+        .act-time { font-size: 12px; color: #94a3b8; }
+        
+        .placeholder-message { text-align: center; color: #94a3b8; padding: 50px 0; }
+        .placeholder-message i { font-size: 40px; margin-bottom: 15px; color: #cbd5e1; }
     </style>
 </head>
 <body>
 
-<div class="admin-container">
-    <div class="admin-header">
-        <div>
-            <h2><i class="fa-solid fa-shield-halved"></i> అడ్మిన్ డ్యాష్‌బోర్డ్</h2>
-            <p>అప్లికేషన్ స్టాటిస్టిక్స్ మరియు యూజర్ యాక్టివిటీ రిపోర్ట్</p>
-        </div>
-        <a href="/" class="back-btn"><i class="fa-solid fa-arrow-left"></i> హోమ్‌కి వెళ్లండి</a>
-    </div>
-
-    <div class="content">
-        <!-- 1. గణాంకాలు (Statistics Cards) -->
-        <div class="stats-bar">
-            <div class="stat-box" style="background: #eff6ff; border: 1px solid #bfdbfe;">
-                <div>
-                    <h3 id="total-users" style="color: #1d4ed8;">0</h3>
-                    <span style="color: #3b82f6;">మొత్తం యూజర్లు</span>
-                </div>
-                <i class="fa-solid fa-users" style="color: #93c5fd;"></i>
-            </div>
-            
-            <div class="stat-box" style="background: #f5f3ff; border: 1px solid #ddd6fe;">
-                <div>
-                    <h3 id="total-searches" style="color: #6d28d9;">0</h3>
-                    <span style="color: #8b5cf6;">మొత్తం శోధనలు</span>
-                </div>
-                <i class="fa-solid fa-magnifying-glass" style="color: #c4b5fd;"></i>
-            </div>
-
-            <div class="stat-box" style="background: #ecfdf5; border: 1px solid #a7f3d0;">
-                <div>
-                    <h3 id="total-downloads" style="color: #047857;">0</h3>
-                    <span style="color: #10b981;">డౌన్‌లోడ్స్</span>
-                </div>
-                <i class="fa-solid fa-cloud-arrow-down" style="color: #6ee7b7;"></i>
-            </div>
-
-            <div class="stat-box" style="background: #fff7ed; border: 1px solid #fed7aa;">
-                <div>
-                    <h3 id="total-actions" style="color: #c2410c;">0</h3>
-                    <span style="color: #f97316;">మొత్తం యాక్టివిటీస్</span>
-                </div>
-                <i class="fa-solid fa-bolt" style="color: #fdba74;"></i>
-            </div>
-        </div>
-
-        <!-- 2. లాగిన్ అయిన యూజర్ల వివరాలు -->
-        <h3 class="section-title"><i class="fa-solid fa-user-check"></i> లాగిన్ అయిన యూజర్ల వివరాలు</h3>
-        <div id="users-container" class="user-list">
-            <div style="text-align: center; color: #64748b; padding: 20px; width: 100%;">లోడ్ అవుతోంది...</div>
-        </div>
-
-        <!-- 3. యూజర్ల యాక్టివిటీ హిస్టరీ -->
-        <h3 class="section-title"><i class="fa-solid fa-clock-rotate-left"></i> యూజర్ల యాక్టివిటీ హిస్టరీ (Search & Downloads)</h3>
-        <div id="activities-container" style="display: flex; flex-direction: column; gap: 12px;">
-            <div style="text-align: center; color: #64748b; padding: 20px;">లోడ్ అవుతోంది...</div>
+    <div class="header">
+        <h1><i class="fa-solid fa-chart-line"></i> TDL Admin Dashboard</h1>
+        <div class="header-buttons">
+            <a href="/" class="btn-home"><i class="fa-solid fa-house"></i> హోమ్‌పేజీ (Home)</a>
+            <a href="/logout" class="btn-logout"><i class="fa-solid fa-right-from-bracket"></i> లాగౌట్ (Logout)</a>
         </div>
     </div>
-</div>
 
-<script>
-    async function loadAdminData() {
-        try {
-            const response = await fetch('/admin/users-json');
-            const data = await response.json();
-            
-            if (data.error) {
-                document.querySelector('.content').innerHTML = `<div style="color: #ef4444; text-align: center; font-weight: 600; padding: 40px;">${data.error}</div>`;
-                return;
-            }
-            
-            // 1. స్టాటిస్టిక్స్ అప్‌డేట్ చేయడం
-            document.getElementById('total-users').innerText = data.total_users || 0;
-            if (data.stats) {
-                document.getElementById('total-searches').innerText = data.stats.searches || 0;
-                document.getElementById('total-downloads').innerText = data.stats.downloads || 0;
-                document.getElementById('total-actions').innerText = data.stats.total_actions || 0;
-            }
+    <!-- Top Stats -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h3 id="stat-users">0</h3>
+            <p>మొత్తం యూజర్లు</p>
+        </div>
+        <div class="stat-card" style="border-bottom-color: #3b82f6;">
+            <h3 id="stat-searches">0</h3>
+            <p>మొత్తం సెర్చ్‌లు</p>
+        </div>
+        <div class="stat-card" style="border-bottom-color: #10b981;">
+            <h3 id="stat-downloads">0</h3>
+            <p>మొత్తం డౌన్‌లోడ్స్</p>
+        </div>
+        <div class="stat-card" style="border-bottom-color: #f59e0b;">
+            <h3 id="stat-online">0</h3>
+            <p>ప్రస్తుతం ఆన్‌లైన్</p>
+        </div>
+    </div>
 
-            // 2. యూజర్ల జాబితాను చూపించడం
-            const usersContainer = document.getElementById('users-container');
-            usersContainer.innerHTML = '';
-            
-            if (!data.users || data.users.length === 0) {
-                usersContainer.innerHTML = `<div style="text-align: center; color: #64748b; width: 100%;">ఇంకా ఎవరూ లాగిన్ కాలేదు.</div>`;
-            } else {
-                const reversedUsers = [...data.users].reverse();
+    <!-- Popular Cards -->
+    <div class="popular-grid">
+        <div class="popular-card">
+            <h3><i class="fa-solid fa-fire" style="color:#ef4444;"></i> పాపులర్ సెర్చ్‌లు (Top Searches)</h3>
+            <ul class="popular-list" id="popular-searches-list"></ul>
+        </div>
+        <div class="popular-card">
+            <h3><i class="fa-solid fa-star" style="color:#f59e0b;"></i> పాపులర్ డౌన్‌లోడ్స్ (Top Downloads)</h3>
+            <ul class="popular-list" id="popular-downloads-list"></ul>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-grid">
+        <!-- Users List (Left) -->
+        <div class="users-list">
+            <div class="section-title">
+                <strong><i class="fa-solid fa-users"></i> యూజర్ల జాబితా</strong>
+            </div>
+            <div id="users-container"></div>
+        </div>
+
+        <!-- Activity Feed (Right) -->
+        <div class="activity-feed">
+            <div class="section-title">
+                <strong id="activity-title"><i class="fa-solid fa-list"></i> యూజర్ యాక్టివిటీ</strong>
+            </div>
+            <div id="activities-container">
+                <div class="placeholder-message">
+                    <i class="fa-solid fa-hand-pointer"></i>
+                    <h3>ఒక యూజర్‌ని ఎంచుకోండి</h3>
+                    <p>యూజర్ వివరాలు చూడటానికి ఎడమవైపు ఉన్న జాబితా నుండి యూజర్‌పై క్లిక్ చేయండి.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allActivities = [];
+
+        // అత్యధికంగా రిపీట్ అయిన వాటిని కనుక్కోవడానికి ఫంక్షన్
+        function getTopItems(arr, limit = 5) {
+            const counts = {};
+            arr.forEach(item => { counts[item] = (counts[item] || 0) + 1; });
+            return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, limit);
+        }
+
+        fetch('/admin/users-json')
+            .then(response => response.json())
+            .then(data => {
+                if(data.error) {
+                    alert("Unauthorized Access!");
+                    window.location.href = "/";
+                    return;
+                }
+
+                allActivities = data.activities;
+                
+                // 1. అప్‌డేట్ స్టాట్స్
+                let onlineCount = data.users.filter(u => u.is_active).length;
+                document.getElementById('stat-users').innerText = data.total_users;
+                document.getElementById('stat-searches').innerText = data.stats.searches;
+                document.getElementById('stat-downloads').innerText = data.stats.downloads;
+                document.getElementById('stat-online').innerText = onlineCount;
+
+                // 2. పాపులర్ సెర్చ్‌లు & డౌన్‌లోడ్స్ ప్రాసెస్ చేయడం
+                let searchesArr = [];
+                let downloadsArr = [];
+
+                data.activities.forEach(act => {
+                    if(act.action === 'Search') {
+                        let term = act.details.replace("వెతికిన పదం: ", "").replace(/'/g, "").trim();
+                        if(term) searchesArr.push(term);
+                    } else if (act.action === 'Download' && act.status === 'Success') {
+                        let title = act.details.replace("డౌన్‌లోడ్: ", "").split("(")[0].replace(/'/g, "").trim();
+                        if(title) downloadsArr.push(title);
+                    }
+                });
+
+                // టాప్ 5 సెర్చ్‌లు
+                const topSearches = getTopItems(searchesArr);
+                const searchList = document.getElementById('popular-searches-list');
+                topSearches.forEach(item => {
+                    searchList.innerHTML += `<li>${item[0]} <span class="badge">${item[1]} సార్లు</span></li>`;
+                });
+
+                // టాప్ 5 డౌన్‌లోడ్స్
+                const topDownloads = getTopItems(downloadsArr);
+                const downloadList = document.getElementById('popular-downloads-list');
+                topDownloads.forEach(item => {
+                    downloadList.innerHTML += `<li>${item[0]} <span class="badge">${item[1]} సార్లు</span></li>`;
+                });
+
+                // 3. యూజర్ల జాబితాను క్రియేట్ చేయడం
+                const usersContainer = document.getElementById('users-container');
+                const reversedUsers = [...data.users].reverse(); // కొత్త యూజర్లు పైన రావడానికి
+                
                 reversedUsers.forEach(user => {
+                    const statusClass = user.is_active ? 'status-online' : 'status-offline';
+                    const statusText = user.is_active ? '<i class="fa-solid fa-circle" style="font-size: 8px; margin-right: 4px;"></i> Online' : 'Offline';
+
                     usersContainer.innerHTML += `
-                        <div class="user-card">
+                        <div class="user-card" onclick="showUserActivities('${user.email}', '${user.name}', this)">
                             <div class="user-info">
-                                <img src="${user.picture}" alt="Profile">
+                                <img src="${user.picture}" onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=${user.name}&background=random&rounded=true';" alt="Profile">
                                 <div>
                                     <h4 class="user-name">${user.name}</h4>
                                     <p class="user-email">${user.email}</p>
                                 </div>
                             </div>
-                            <div style="background: #dcfce7; color: #166534; padding: 6px 12px; border-radius: 50px; font-size: 12px; font-weight: 600;">
-                                <i class="fa-solid fa-check-circle"></i>
-                            </div>
+                            <div class="status-badge ${statusClass}">${statusText}</div>
                         </div>
                     `;
                 });
-            }
+            })
+            .catch(error => console.error("Error loading admin data:", error));
 
-            // 3. యాక్టివిటీస్ (Search & Download History) డిస్‌ప్లే చేయడం
-            const actContainer = document.getElementById('activities-container');
-            actContainer.innerHTML = '';
+        // యూజర్ పై క్లిక్ చేసినప్పుడు వారి యాక్టివిటీని చూపించే ఫంక్షన్
+        function showUserActivities(email, name, cardElement) {
+            // అన్ని కార్డ్స్ నుండి ఆక్టివ్ క్లాస్ తీసేయడం
+            document.querySelectorAll('.user-card').forEach(card => card.classList.remove('active-user'));
+            // క్లిక్ చేసిన దానికి ఆక్టివ్ క్లాస్ యాడ్ చేయడం
+            cardElement.classList.add('active-user');
+
+            document.getElementById('activity-title').innerHTML = `<img src="https://ui-avatars.com/api/?name=${name}&background=random&rounded=true&size=24" style="vertical-align: middle; margin-right: 8px;"> ${name} యాక్టివిటీ`;
             
-            if (!data.activities || data.activities.length === 0) {
-                actContainer.innerHTML = `<div style="text-align: center; color: #64748b; padding: 20px; border: 1px dashed #cbd5e1; border-radius: 10px;">ఇంకా ఎటువంటి యాక్టివిటీ లేదు.</div>`;
-            } else {
-                data.activities.forEach(act => {
-                    const icon = act.action === 'Search' 
-                        ? '<i class="fa-solid fa-magnifying-glass" style="color: #3b82f6;"></i>' 
-                        : '<i class="fa-solid fa-download" style="color: #10b981;"></i>';
-                    const badgeStyle = act.action === 'Search' 
-                        ? 'background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;' 
-                        : 'background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0;';
+            const container = document.getElementById('activities-container');
+            container.innerHTML = '';
 
-                    actContainer.innerHTML += `
-                        <div style="display: flex; align-items: center; justify-content: space-between; background: #fff; padding: 15px 20px; border-radius: 12px; border: 1px solid #e2e8f0; transition: 0.2s;">
-                            <div style="display: flex; align-items: center; gap: 15px;">
-                                <img src="${act.picture}" alt="" style="width: 40px; height: 40px; border-radius: 50%; border: 2px solid #f1f5f9;">
-                                <div>
-                                    <h4 style="margin: 0; font-size: 15px; color: #0f172a;">${act.name}</h4>
-                                    <p style="margin: 5px 0 0 0; font-size: 14px; color: #475569;">
-                                        ${icon} <span style="font-weight: 600; margin-left: 4px;">${act.action}:</span> ${act.details}
-                                    </p>
-                                </div>
-                            </div>
-                            <div style="text-align: right;">
-                                <span style="font-size: 12px; color: #94a3b8; display: block; margin-bottom: 6px;">${act.time}</span>
-                                <span style="padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; ${badgeStyle}">${act.action}</span>
-                            </div>
-                        </div>
-                    `;
-                });
+            // క్లిక్ చేసిన యూజర్ యాక్టివిటీని మాత్రమే ఫిల్టర్ చేయడం
+            const userActs = allActivities.filter(act => act.email === email);
+
+            if (userActs.length === 0) {
+                container.innerHTML = '<div class="placeholder-message"><p>ఈ యూజర్ ఇంకా ఎలాంటి యాక్టివిటీ చేయలేదు.</p></div>';
+                return;
             }
 
-        } catch (error) {
-            console.error("Error loading admin data:", error);
-            document.querySelector('.content').innerHTML = `<div style="color: #ef4444; text-align: center; padding: 20px;">డేటాను లోడ్ చేయడంలో లోపం ఏర్పడింది.</div>`;
-        }
-    }
-    
-    window.onload = loadAdminData;
-</script>
+            userActs.forEach(act => {
+                const icon = act.action === 'Search' ? '<i class="fa-solid fa-magnifying-glass" style="color: #3b82f6;"></i>' : '<i class="fa-solid fa-download" style="color: #10b981;"></i>';
+                
+                let statusBadge = '';
+                if(act.status === 'Failed') {
+                    statusBadge = `<span style="background: #fef2f2; color: #ef4444; border: 1px solid #fecaca; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 10px; font-weight: 600;">ఫెయిల్ ❌</span>`;
+                } else if (act.action === 'Download') {
+                    statusBadge = `<span style="background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 10px; font-weight: 600;">సక్సెస్ ✅</span>`;
+                }
 
+                container.innerHTML += `
+                    <div class="activity-item">
+                        <div class="act-details">
+                            <strong>${icon} ${act.action}:</strong> ${act.details} ${statusBadge}
+                        </div>
+                        <div class="act-time">${act.time}</div>
+                    </div>
+                `;
+            });
+        }
+    </script>
 </body>
 </html>

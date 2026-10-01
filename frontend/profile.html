@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="te">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>నా ప్రొఫైల్ - TDL</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f8fafc; margin: 0; padding: 20px; color: #333; }
+        .header { display: flex; justify-content: space-between; align-items: center; background: #1e3a8a; color: white; padding: 15px 30px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .header h1 { margin: 0; font-size: 22px; }
+        .header-buttons { display: flex; gap: 15px; }
+        .btn-home { background: #3b82f6; color: white; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; transition: 0.3s; }
+        .btn-home:hover { background: #2563eb; }
+        
+        /* Profile Card */
+        .profile-card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; margin-bottom: 25px; }
+        .profile-card img { width: 100px; height: 100px; border-radius: 50%; border: 4px solid #e2e8f0; margin-bottom: 15px; }
+        .profile-card h2 { margin: 0; color: #0f172a; }
+        .profile-card p { color: #64748b; margin: 5px 0 20px 0; }
+        
+        .stats { display: flex; justify-content: center; gap: 30px; }
+        .stat-item { background: #f1f5f9; padding: 10px 25px; border-radius: 50px; font-weight: bold; color: #334155; }
+        .stat-item span { color: #2563eb; font-size: 18px; margin-right: 5px; }
+
+        /* History Feed */
+        .history-feed { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); max-width: 800px; margin: 0 auto; }
+        .history-title { font-size: 18px; color: #1e293b; margin-bottom: 20px; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px; }
+        
+        .activity-item { display: flex; align-items: flex-start; gap: 15px; padding: 15px; border-bottom: 1px solid #f1f5f9; }
+        .activity-item:last-child { border-bottom: none; }
+        .icon-box { padding: 10px; border-radius: 50%; background: #eff6ff; color: #3b82f6; width: 20px; height: 20px; display: flex; justify-content: center; align-items: center; }
+        .act-details { flex: 1; }
+        .act-details strong { color: #0f172a; font-size: 15px; }
+        .act-details p { margin: 5px 0 0 0; color: #475569; font-size: 14px; }
+        .act-time { font-size: 12px; color: #94a3b8; white-space: nowrap; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1><i class="fa-solid fa-user-circle"></i> నా ప్రొఫైల్ (My Profile)</h1>
+        <div class="header-buttons">
+            <a href="/" class="btn-home"><i class="fa-solid fa-house"></i> హోమ్‌పేజీ</a>
+        </div>
+    </div>
+
+    <!-- User Details Card -->
+    <div class="profile-card">
+        <img id="user-pic" src="" alt="Profile Picture">
+        <h2 id="user-name">Loading...</h2>
+        <p id="user-email">...</p>
+        <div class="stats">
+            <div class="stat-item"><span id="total-searches">0</span> సెర్చ్‌లు</div>
+            <div class="stat-item"><span id="total-downloads">0</span> డౌన్‌లోడ్స్</div>
+        </div>
+    </div>
+
+    <!-- User Activity History -->
+    <div class="history-feed">
+        <div class="history-title"><strong><i class="fa-solid fa-clock-rotate-left"></i> మీ గత హిస్టరీ (Recent Activity)</strong></div>
+        <div id="history-container">
+            <p style="text-align:center; color:#94a3b8;">లోడ్ అవుతోంది...</p>
+        </div>
+    </div>
+
+    <script>
+        fetch('/user/activity-json')
+            .then(response => response.json())
+            .then(data => {
+                if(data.error) {
+                    window.location.href = "/login/google";
+                    return;
+                }
+
+                // సెట్ ప్రొఫైల్ డేటా
+                document.getElementById('user-pic').src = data.user.picture;
+                document.getElementById('user-name').innerText = data.user.name;
+                document.getElementById('user-email').innerText = data.user.email;
+                document.getElementById('total-searches').innerText = data.stats.searches;
+                document.getElementById('total-downloads').innerText = data.stats.downloads;
+
+                // సెట్ హిస్టరీ
+                const container = document.getElementById('history-container');
+                container.innerHTML = '';
+
+                if (data.activities.length === 0) {
+                    container.innerHTML = '<p style="text-align:center; color:#94a3b8;">మీరు ఇంకా ఎలాంటి సెర్చ్ లేదా డౌన్‌లోడ్ చేయలేదు.</p>';
+                    return;
+                }
+
+                data.activities.forEach(act => {
+                    const isSearch = act.action === 'Search';
+                    const iconBox = isSearch 
+                        ? '<div class="icon-box"><i class="fa-solid fa-magnifying-glass"></i></div>' 
+                        : '<div class="icon-box" style="background:#ecfdf5; color:#10b981;"><i class="fa-solid fa-download"></i></div>';
+                    
+                    let statusBadge = '';
+                    if(act.status === 'Failed') {
+                        statusBadge = `<span style="background: #fef2f2; color: #ef4444; border: 1px solid #fecaca; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 8px;">ఫెయిల్ ❌</span>`;
+                    } else if (!isSearch) {
+                        statusBadge = `<span style="background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 8px;">సక్సెస్ ✅</span>`;
+                    }
+
+                    container.innerHTML += `
+                        <div class="activity-item">
+                            ${iconBox}
+                            <div class="act-details">
+                                <strong>${act.action}</strong> ${statusBadge}
+                                <p>${act.details}</p>
+                            </div>
+                            <div class="act-time">${act.time}</div>
+                        </div>
+                    `;
+                });
+            })
+            .catch(err => console.error(err));
+    </script>
+</body>
+</html>

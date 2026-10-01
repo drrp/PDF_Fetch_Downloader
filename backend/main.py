@@ -1,13 +1,14 @@
 ﻿import os
 import re
 import uuid
+import sqlite3
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
 from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from datetime import datetime
-
-# --- స్క్రాపర్ క్లాస్‌ల ఇంపోర్ట్స్ (Shodhganga తొలగించబడింది) ---
 from backend.svk import SVKScraper
 from backend.archive import InternetArchiveScraper
 from backend.manasu import ManasuFoundationScraper
@@ -17,7 +18,57 @@ from fastapi.responses import RedirectResponse
 from authlib.integrations.starlette_client import OAuth
 from starlette.middleware.sessions import SessionMiddleware
 
+# 2. అన్ని ఇంపోర్ట్స్ అయ్యాక వెంటనే దీన్ని కాల్ చేయాలి
 load_dotenv()
+
+# డేటాబేస్ కనెక్షన్ ఫంక్షన్
+def get_db_connection():
+    return psycopg2.connect(os.getenv("DATABASE_URL"))
+
+def init_db():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Users Table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            email TEXT PRIMARY KEY,
+            name TEXT,
+            picture TEXT,
+            last_login TEXT,
+            is_active BOOLEAN DEFAULT FALSE
+        )
+    ''')
+    
+    # ఒకవేళ పాత టేబుల్ ఇప్పటికే ఉంటే, దానికి ఈ కొత్త కాలమ్ యాడ్ చేయడానికి
+    cursor.execute('''
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT FALSE;
+    ''')
+    
+    # Activities Table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS activities (
+            id SERIAL PRIMARY KEY,
+            email TEXT,
+            name TEXT,
+            picture TEXT,
+            action TEXT,
+            details TEXT,
+            time TEXT,
+            status TEXT DEFAULT 'Success'
+        )
+    ''')
+    
+    # పాత డేటాబేస్ ఉన్నట్లయితే దానికి status కాలమ్ యాడ్ చేయడానికి
+    cursor.execute('''
+        ALTER TABLE activities ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Success';
+    ''')
+    
+    conn.commit()
+    conn.close()
+
+init_db()
+# --------------------------------------------------
 
 app = FastAPI()
 
@@ -39,17 +90,37 @@ logged_in_users = []
 
 app_activities = []
 
-def log_user_activity(request: Request, action_type: str, details: str):
+# యాక్టివిటీని డేటాబేస్‌లో పర్మినెంట్‌గా సేవ్ చేసే ఫంక్షన్
+def log_user_activity(request: Request, action_type: str, details: str, status: str = "Success"):
     user = request.session.get('user')
     if user:
-        app_activities.append({
-            "email": user.get("email"),
-            "name": user.get("name"),
-            "picture": user.get("picture"),
-            "action": action_type,    
-            "details": details,       
-            "time": datetime.now().strftime("%d-%m-%Y %I:%M %p")
-        })
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            # 1. యాక్టివిటీని రికార్డ్ చేయడం (status ని కూడా ఇక్కడ యాడ్ చేశాం)
+            cursor.execute('''
+                INSERT INTO activities (email, name, picture, action, details, time, status)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ''', (
+                user.get("email"),
+                user.get("name"),
+                user.get("picture"),
+                action_type,
+                details,
+                datetime.now().strftime("%d-%m-%Y %I:%M %p"),
+                status
+            ))
+            
+            # 2. యూజర్ యాక్టివ్‌గా ఉన్నాడు కాబట్టి స్టేటస్‌ను Online (TRUE) చేయడం
+            cursor.execute('''
+                UPDATE users SET is_active = TRUE WHERE email = %s
+            ''', (user.get("email"),))
+            
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print("DB Error logging activity:", e)
 
 # 3. గూగుల్ లాగిన్ రౌట్
 @app.get('/login/google')
@@ -58,40 +129,72 @@ async def login(request: Request):
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 # 4. గూగుల్ కాల్‌బ్యాక్ రౌట్ (లాగిన్ అయ్యాక ఇక్కడికి వస్తుంది)
+# 4. గూగుల్ కాల్‌బ్యాక్ రౌట్ (లాగిన్ అయ్యాక ఇక్కడికి వస్తుంది)
 @app.get('/auth/callback')
 async def auth(request: Request):
     try:
-        # గూగుల్ నుండి టోకెన్ మరియు యూజర్ ఇన్ఫో పొందడం
+        # గూగుల్ నుండి టోకెన్ పొందడం
         token = await oauth.google.authorize_access_token(request)
-        user_info = token.get('userinfo')
         
-        if user_info:
-            # సెషన్‌లో యూజర్ డేటాను సేవ్ చేయడం
-            request.session['user'] = {
+        # గూగుల్ వెర్షన్ బట్టి యూజర్ ఇన్ఫో రెండు విధాలుగా రావచ్చు, రెండింటినీ చెక్ చేద్దాం
+        user_info = token.get('userinfo') or token.get('user_info')
+        
+        # ఒకవేళ టోకెన్‌లోనే యూజర్ ఇన్ఫో రాకపోతే, అఫిషియల్ API ద్వారా తెచ్చుకోవడం
+        if not user_info:
+            resp = await oauth.google.get('https://www.googleapis.com/oauth2/v3/userinfo', token=token)
+            user_info = resp.json()
+        
+        if user_info and user_info.get('email'):
+            user_dict = {
                 "name": user_info.get("name"),
                 "email": user_info.get("email"),
                 "picture": user_info.get("picture")
             }
+            # సెషన్‌లో యూజర్ డేటాను సేవ్ చేయడం
+            request.session['user'] = user_dict
             
-            # అడ్మిన్ ట్రాకింగ్ కోసం లిస్ట్‌లో యాడ్ చేయడం
-            user_data = request.session['user']
-            if user_data not in logged_in_users:
-                logged_in_users.append(user_data)
+            # పర్మినెంట్ డేటాబేస్‌లో యూజర్‌ని సేవ్ చేయడం
+            # (మీ /auth/callback రౌట్ లోపల యూజర్ డేటా సేవ్ చేసే చోట)
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            # Postgres లో డేటా ఉంటే అప్‌డేట్ చేయడానికి (ON CONFLICT) వాడతాం
+            cursor.execute('''
+                INSERT INTO users (email, name, picture, last_login)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (email) 
+                DO UPDATE SET name = EXCLUDED.name, picture = EXCLUDED.picture, last_login = EXCLUDED.last_login
+            ''', (
+                user_dict.get('email'),
+                user_dict.get('name'),
+                user_dict.get('picture'),
+                datetime.now().strftime("%d-%m-%Y %I:%M %p")
+            ))
+            conn.commit()
+            conn.close()
+                
+            # 🌟 అడ్మిన్ లాగిన్ అయితే నేరుగా అడ్మిన్ ప్యానెల్‌కి పంపడం 🌟
+            admin_email = "rpsarma9247@gmail.com"
+            if user_dict.get('email') == admin_email:
+                return RedirectResponse(url='/admin', status_code=303)
                 
     except Exception as e:
         print(f"OAuth Error: {e}")
         
-    # లాగిన్ విజయవంతంగా ముగిశాక నేరుగా హోమ్‌పేజీకి పంపడం
+    # సాధారణ యూజర్ అయితే హోమ్‌పేజీకి వెళ్తారు
     return RedirectResponse(url='/', status_code=303)
 
 # అడ్మిన్ డ్యాష్‌బోర్డ్ HTML పేజీని చూపించే ఎండ్‌పాయింట్
 @app.get('/admin')
 def admin_dashboard(request: Request):
     user = request.session.get('user')
-    admin_email = "rpsarma9247@gmail.com" # మీ అడ్మిన్ ఈమెయిల్
+    admin_email = "rpsarma9247@gmail.com"
     
-    # అడ్మిన్ కాకపోతే హోమ్‌పేజీకి పంపించేయాలి
-    if not user or user.get('email') != admin_email:
+    # యూజర్ లాగిన్ అవ్వకపోతే గూగుల్ లాగిన్‌కి పంపడం
+    if not user:
+        return RedirectResponse(url='/login/google')
+        
+    # ఒకవేళ లాగిన్ అయిన యూజర్ అడ్మిన్ కాకపోతే సాధారణ హోమ్‌పేజీకి పంపడం
+    if user.get('email') != admin_email:
         return RedirectResponse(url='/')
         
     admin_page = os.path.join(FRONTEND_DIR, "admin.html")
@@ -105,23 +208,80 @@ def admin_dashboard(request: Request):
 @app.get('/admin/users-json')
 def get_admin_users_json(request: Request):
     user = request.session.get('user')
-    admin_email = "rpsarma9247@gmail.com"
+    admin_email = os.getenv("ADMIN_EMAIL", "rpsarma9247@gmail.com")
     
     if not user or user.get('email') != admin_email:
         return {"error": "Unauthorized Access"}
     
-    # స్టాటిస్టిక్స్ లెక్కించడం
-    total_searches = sum(1 for act in app_activities if act.get('action') == 'Search')
-    total_downloads = sum(1 for act in app_activities if act.get('action') == 'Download')
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor) # డేటాను డిక్షనరీలా ఇస్తుంది
+    
+    cursor.execute("SELECT * FROM users")
+    users = cursor.fetchall()
+    
+    cursor.execute("SELECT * FROM activities ORDER BY id DESC")
+    activities = cursor.fetchall()
+    
+    conn.close()
+    
+    total_searches = sum(1 for act in activities if act['action'] == 'Search')
+    total_downloads = sum(1 for act in activities if act['action'] == 'Download')
     
     return {
-        "total_users": len(logged_in_users), 
-        "users": logged_in_users,
-        "activities": app_activities[::-1],
+        "total_users": len(users), 
+        "users": users,
+        "activities": activities,
         "stats": {
             "searches": total_searches,
             "downloads": total_downloads,
-            "total_actions": len(app_activities)
+            "total_actions": len(activities)
+        }
+    }
+    
+# ==========================================
+# యూజర్ ప్రొఫైల్ & హిస్టరీ రౌట్స్
+# ==========================================
+
+# 1. ప్రొఫైల్ పేజీని ఓపెన్ చేయడానికి
+@app.get('/profile')
+def user_profile(request: Request):
+    user = request.session.get('user')
+    if not user:
+        return RedirectResponse(url='/login/google')
+        
+    profile_page = os.path.join(FRONTEND_DIR, "profile.html")
+    if os.path.exists(profile_page):
+        return FileResponse(profile_page)
+    return {"error": "profile.html not found"}
+
+# 2. యూజర్ యాక్టివిటీ డేటాను పంపడానికి
+@app.get('/user/activity-json')
+def get_user_activity(request: Request):
+    user = request.session.get('user')
+    if not user:
+        return {"error": "Not logged in"}
+    
+    email = user.get('email')
+    
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    
+    # యూజర్ యాక్టివిటీని లేటెస్ట్ నుండి పాతవాటికి తెచ్చుకోవడం
+    cursor.execute("SELECT * FROM activities WHERE email = %s ORDER BY id DESC", (email,))
+    activities = cursor.fetchall()
+    
+    conn.close()
+    
+    # సెర్చ్‌లు మరియు డౌన్‌లోడ్స్ కౌంట్
+    total_searches = sum(1 for act in activities if act['action'] == 'Search')
+    total_downloads = sum(1 for act in activities if act['action'] == 'Download' and act['status'] == 'Success')
+    
+    return {
+        "user": user,
+        "activities": activities,
+        "stats": {
+            "searches": total_searches,
+            "downloads": total_downloads
         }
     }
 
@@ -140,6 +300,19 @@ def get_current_user(request: Request):
 
 @app.get('/logout')
 def logout(request: Request):
+    user = request.session.get('user')
+    if user:
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE users SET is_active = FALSE WHERE email = %s
+            ''', (user.get('email'),))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print("DB Error on logout:", e)
+            
     request.session.clear()
     return RedirectResponse(url='/')
 
@@ -230,10 +403,7 @@ def search(
 
 @app.get("/download-book")
 def download_book(request: Request, book_page_url: str = Query(...), title: str = Query(...), source: str = Query("SVK")):
-    # యూజర్ డౌన్‌లోడ్ చేసిన పుస్తకాన్ని రికార్డ్ చేయడం
-    log_user_activity(request, "Download", f"డౌన్‌లోడ్: '{title}' ({source})")
     safe_title = re.sub(r'[\\/*?:"<>|]', "", title).strip()
-    
     unique_id = uuid.uuid4().hex[:6]
     filename = f"{safe_title}_{unique_id}.pdf"
     filepath = os.path.join(DOWNLOAD_DIR, filename)
@@ -248,6 +418,9 @@ def download_book(request: Request, book_page_url: str = Query(...), title: str 
         else:
             svk_scraper.download(book_page_url, title, filepath)
             
+        # 1. సక్సెస్ అయితే డేటాబేస్‌లో Success అని సేవ్ అవుతుంది
+        log_user_activity(request, "Download", f"డౌన్‌లోడ్: '{title}' ({source})", "Success")
+            
         return {
             "status": "success", 
             "message": f"Saved to {filepath}", 
@@ -257,12 +430,16 @@ def download_book(request: Request, book_page_url: str = Query(...), title: str 
         error_str = str(e)
         if error_str.startswith("GDRIVE_RESTRICTED|"):
             drive_url = error_str.split("|")[1]
+            # 2. గూగుల్ డ్రైవ్ లాగిన్ అడిగితే Failed అని సేవ్ అవుతుంది
+            log_user_activity(request, "Download", f"డ్రైవ్ లాగిన్ అడిగింది: '{title}'", "Failed")
             return {
                 "status": "gdrive_restricted", 
                 "message": "ఈ ఫైల్‌‌ను డౌన్‌లోడ్ చేయడానికి Google లాగిన్ అవసరం.", 
                 "url": drive_url
             }
             
+        # 3. Timeout లాంటి ఇతర ఎర్రర్స్ వస్తే, ఆ ఎర్రర్ వివరాలతో Failed అని సేవ్ అవుతుంది
+        log_user_activity(request, "Download", f"విఫలం: '{title}' | ఎర్రర్: {error_str}", "Failed")
         print(f"Download error: {error_str}")
         return {"status": "error", "message": error_str}    
 
