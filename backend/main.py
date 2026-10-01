@@ -73,7 +73,13 @@ init_db()
 app = FastAPI()
 
 # 1. FastAPI యాప్ క్రియేట్ చేసిన వెంటనే (app = FastAPI() కింద) ఈ సెషన్ మిడిల్‌వేర్ యాడ్ చేయాలి
-app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET_KEY"))
+# సెషన్ మిడిల్‌వేర్‌ని మరింత స్థిరంగా కాన్ఫిగర్ చేయడం
+app.add_middleware(
+    SessionMiddleware, 
+    secret_key=os.getenv("SESSION_SECRET_KEY", "your-secret-key"),
+    same_site="lax",
+    https_only=False  # లోకల్ హోస్ట్ లో హెచ్‌టీటీపీ (HTTP) వాడటానికి ఇది చాలా ముఖ్యం
+)
 
 # 2. Google OAuth సెటప్
 oauth = OAuth()
@@ -247,7 +253,8 @@ def get_admin_users_json(request: Request):
 def user_profile(request: Request):
     user = request.session.get('user')
     if not user:
-        return RedirectResponse(url='/login/google')
+        # లాగిన్ లేకపోతే నేరుగా లాగిన్ పేజీకి పంపడం
+        return RedirectResponse(url='/', status_code=303)
         
     profile_page = os.path.join(FRONTEND_DIR, "profile.html")
     if os.path.exists(profile_page):
@@ -291,11 +298,16 @@ def get_current_user(request: Request):
     user = request.session.get('user')
     if not user:
         return {"logged_in": False}
+    
+    admin_email = "rpsarma9247@gmail.com"
+    is_admin = (user.get("email") == admin_email)
+    
     return {
         "logged_in": True,
         "name": user.get("name"),
         "email": user.get("email"),
-        "picture": user.get("picture")
+        "picture": user.get("picture"),
+        "is_admin": is_admin
     }
 
 @app.get('/logout')
@@ -315,6 +327,23 @@ def logout(request: Request):
             
     request.session.clear()
     return RedirectResponse(url='/')
+
+@app.post('/logout-beacon')
+def logout_beacon(request: Request):
+    user = request.session.get('user')
+    if user:
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE users SET is_active = FALSE WHERE email = %s
+            ''', (user.get('email'),))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print("Beacon logout error:", e)
+    request.session.clear()
+    return {"status": "logged_out"}
 
 # పాత్ కాన్ఫిగరేషన్
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -371,10 +400,10 @@ def search(
     page: int = Query(1, description="Page number"),
     limit: int = Query(10, description="Items per page")
 ):
-    # యూజర్ సెర్చ్ చేసిన పదాన్ని రికార్డ్ చేయడం
+    # యూజర్ సెర్చ్ చేసిన పదాన్ని రికార్డ్ చేయడం (ఇది సరైనది)
     log_user_activity(request, "Search", f"వెతికిన పదం: '{query}'")
-    results = []
     
+    results = []
     if use_svk:
         results.extend(svk_scraper.search(query))
     if use_ia:
@@ -386,7 +415,6 @@ def search(
         
     total_items = len(results)
     
-    # పెర్ పేజ్ 10 ఐటమ్స్ ప్రకారం స్లైస్ చేయడం
     start_idx = (page - 1) * limit
     end_idx = start_idx + limit
     paginated_results = results[start_idx:end_idx]

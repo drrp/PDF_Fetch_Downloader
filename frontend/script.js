@@ -9,7 +9,6 @@ const statTotal = document.getElementById("stat-total");
 const resultsCountLabel = document.getElementById("results-count-label");
 
 // ప్రస్తుత యూజర్ లాగిన్ వివరాలను సర్వర్ నుండి తెచ్చుకొని స్క్రీన్‌పై చూపించే పర్‌ఫెక్ట్ ఫంక్షన్
-// ప్రస్తుత యూజర్ లాగిన్ వివరాలను సర్వర్ నుండి తెచ్చుకొని స్క్రీన్‌పై చూపించే పర్‌ఫెక్ట్ ఫంక్షన్
 async function checkLoginStatus() {
   try {
     const response = await fetch('/api/current-user');
@@ -20,15 +19,24 @@ async function checkLoginStatus() {
     
     if (data.logged_in) {
       if (loginBtn) {
-        loginBtn.style.display = "none"; // లాగిన్ బటన్‌ను పూర్తిగా దాచిపెట్టడం
+        loginBtn.style.display = "none";
       }
 
-      // ఒకవేళ ప్రొఫైల్ కార్డ్ ఆల్రెడీ లేకపోతే క్రియేట్ చేయడం
       if (authSection && !document.getElementById("user-profile-card-dynamic")) {
         const profileDiv = document.createElement("div");
         profileDiv.id = "user-profile-card-dynamic";
-        profileDiv.style.cssText = "display: flex; align-items: center; gap: 12px; background: #ffffff; padding: 6px 14px; border-radius: 10px; border: 1px solid #cbd5e1; box-shadow: 0 2px 4px rgba(0,0,0,0.05);";
+        profileDiv.style.cssText = "display: flex; align-items: center; gap: 10px; background: #ffffff; padding: 6px 14px; border-radius: 10px; border: 1px solid #cbd5e1; box-shadow: 0 2px 4px rgba(0,0,0,0.05);";
         
+        // ఒకవేళ అడ్మిన్ అయితే అడ్మిన్ బటన్ కనిపిస్తుంది, లేదంటే కేవలం ప్రొఫైల్ & నా ప్రొఫైల్ కనిపిస్తాయి
+        let adminButtonHtml = "";
+        if (data.is_admin) {
+          adminButtonHtml = `
+            <a href="/admin" style="background: #0f172a; color: white; padding: 6px 12px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-flex; align-items: center; gap: 5px; font-size: 13px;">
+                <i class="fa-solid fa-gauge"></i> అడ్మిన్ ప్యానెల్
+            </a>
+          `;
+        }
+
         profileDiv.innerHTML = `
           <img src="${data.picture || 'https://via.placeholder.com/36'}" alt="Profile" style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid #2563eb;">
           <div style="display: flex; flex-direction: column; text-align: left;">
@@ -36,10 +44,11 @@ async function checkLoginStatus() {
               <a href="/logout" style="font-size: 11px; color: #dc2626; text-decoration: none; font-weight: 500; margin-top: 2px;">లాగౌట్ (Logout)</a>
           </div>
           
-          <!-- 🌟 నా ప్రొఫైల్ బటన్ 🌟 -->
           <a href="/profile" style="background: #3b82f6; color: white; padding: 6px 12px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-flex; align-items: center; gap: 5px; font-size: 13px; margin-left: 5px;">
               <i class="fa-solid fa-user"></i> నా ప్రొఫైల్
           </a>
+
+          ${adminButtonHtml}
         `;
         
         authSection.appendChild(profileDiv);
@@ -52,8 +61,53 @@ async function checkLoginStatus() {
 
 // ---------------------------------------------------------
 // పేజీ లోడ్ అవ్వగానే పై ఫంక్షన్‌ను రన్ చేసే కోడ్ (ఇదే మిస్ అయింది!)
-window.addEventListener("DOMContentLoaded", () => {
+window.addEventListener("DOMContentLoaded", async () => {
   checkLoginStatus();
+
+  // sessionStorage నుండి పెండింగ్ డౌన్‌లోడ్ లేదా సెర్చ్‌ని చెక్ చేయడం (URL క్లీన్‌గా ఉంటుంది)
+  const pendingDlUrl = sessionStorage.getItem('pending_dl_url');
+  const pendingDlTitle = sessionStorage.getItem('pending_dl_title');
+  const pendingDlSource = sessionStorage.getItem('pending_dl_source');
+
+  if (pendingDlUrl && pendingDlTitle) {
+    sessionStorage.removeItem('pending_dl_url');
+    sessionStorage.removeItem('pending_dl_title');
+    sessionStorage.removeItem('pending_dl_source');
+
+    queryInput.value = pendingDlTitle;
+    resultsContainer.innerHTML = "";
+    resultsCountLabel.innerText = "రీ-డౌన్‌లోడ్ కోసం సిద్ధంగా ఉన్న పుస్తకం";
+
+    const card = document.createElement("div");
+    card.className = "book-card";
+
+    let badgeClass = "badge-svk";
+    if (pendingDlSource === "Internet Archive") badgeClass = "badge-ia";
+    if (pendingDlSource === "Manasu Foundation") badgeClass = "badge-manasu";
+    if (pendingDlSource === "TTD Ebooks") badgeClass = "badge-ttd";
+
+    card.innerHTML = `
+        <div class="book-info">
+            <div class="no-cover"><i class="fa-solid fa-book"></i></div>
+            <div class="book-details-content">
+                <span class="badge ${badgeClass}">${pendingDlSource}</span>
+                <div class="book-title">${pendingDlTitle}</div>
+            </div>
+        </div>
+        <button class="action-btn" onclick="savePdfLocally('${pendingDlUrl}', '${pendingDlTitle.replace(/'/g, "\\'")}', '${pendingDlSource}', this)">
+            <i class="fa-solid fa-download"></i> మళ్లీ సేవ్ చేయి
+        </button>
+    `;
+    resultsContainer.appendChild(card);
+    return;
+  }
+
+  const pendingSearch = sessionStorage.getItem('pending_search');
+  if (pendingSearch) {
+    sessionStorage.removeItem('pending_search');
+    queryInput.value = pendingSearch;
+    performSearch();
+  }
 });
 // ---------------------------------------------------------
 
