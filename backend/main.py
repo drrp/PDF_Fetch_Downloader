@@ -431,7 +431,11 @@ def search(
 
 @app.get("/download-book")
 def download_book(request: Request, book_page_url: str = Query(...), title: str = Query(...), source: str = Query("SVK")):
-    safe_title = re.sub(r'[\\/*?:"<>|]', "", title).strip()
+    # 🌟 పుస్తకం పేరు చాలా పెద్దదిగా ఉంటే కేవలం మొదటి 40 అక్షరాలకు ట్రిమ్ చేయడం (File name too long ఎర్రర్ రాకుండా)
+    safe_title = re.sub(r'[\\/*?:"<>|]', "", title).strip()[:40]
+    if not safe_title:
+        safe_title = "book"
+        
     unique_id = uuid.uuid4().hex[:6]
     filename = f"{safe_title}_{unique_id}.pdf"
     filepath = os.path.join(DOWNLOAD_DIR, filename)
