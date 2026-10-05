@@ -8,11 +8,15 @@ import json
 import base64
 import fitz  # PyMuPDF (PDF ని పేజీలుగా మార్చడానికి)
 import time
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
 from google import genai
 from authlib.integrations.starlette_client import OAuth
 from google.cloud import vision  # Google Cloud Vision API కోసం
 from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
+from fastapi import Form
 from fastapi import FastAPI, Query, Request, Depends
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -218,6 +222,43 @@ def user_profile(request: Request):
     return FileResponse(profile_page) if os.path.exists(profile_page) else {"error": "profile.html not found"}
 
 
+# గూగుల్ డ్రైవ్ ఆథెంటికేషన్ & అప్‌లోడ్ ఫంక్షన్
+SCOPES = ['https://www.googleapis.com/auth/drive.file']
+SERVICE_ACCOUNT_FILE = 'credentials.json'
+
+def get_drive_service():
+    creds = service_account.Credentials.from_service_account_file(
+        SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+    return build('drive', 'v3', credentials=creds)
+
+def upload_pdf_to_drive(file_path, filename):
+    try:
+        service = get_drive_service()
+        
+        # మీ షేర్డ్ డ్రైవ్ ఐడీని ఇక్కడ ఇవ్వండి
+        shared_drive_id = "0APbexQ8RCU0WUk9PVA" 
+        
+        file_metadata = {
+            'name': filename,
+            'parents': [shared_drive_id] # షేర్డ్ డ్రైవ్ ఐడీ పేరెంట్ అవుతుంది
+        }
+        
+        media = MediaFileUpload(file_path, mimetype='application/pdf')
+        
+        # supportsAllDrives=True అనేది షేర్డ్ డ్రైవ్‌కి అప్‌లోడ్ చేయడానికి అత్యంత ముఖ్యం
+        file = service.files().create(
+            body=file_metadata, 
+            media_body=media, 
+            supportsAllDrives=True,
+            fields='id, webContentLink, webViewLink'
+        ).execute()
+        
+        return file.get('webViewLink')
+    except Exception as e:
+        print(f"Drive Upload Error: {e}")
+        return None
+
+
 # ప్రత్యేక OCR పేజీని ఓపెన్ చేయడానికి రౌట్
 @app.get('/ocr-hub')
 def ocr_hub_page(request: Request):
@@ -250,6 +291,56 @@ def get_user_activity(request: Request):
             "downloads": sum(1 for a in activities if a['action'] == 'Download' and a['status'] == 'Success')
         }
     }
+    
+import os
+from fastapi import APIRouter, Request
+
+@app.get("/api/downloaded-files")
+def get_downloaded_files():
+    """డౌన్‌లోడ్ అయిన పుస్తకాలను మరియు వాటి OCR స్టేటస్‌ను పంపే రౌట్"""
+    files = []
+    if os.path.exists(DOWNLOAD_DIR):
+        file_names = [f for f in os.listdir(DOWNLOAD_DIR) if f.endswith('.pdf')]
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        for filename in file_names:
+            # 🌟 డేటాబేస్‌లో ఈ ఫైల్‌‌కు OCR పూర్తయిందా లేదా చెక్ చేయడం
+            cursor.execute("SELECT 1 FROM pdf_text_index WHERE filename = %s LIMIT 1", (filename,))
+            is_done = cursor.fetchone() is not None
+            
+            files.append({
+                "filename": filename,
+                "ocr_done": is_done
+            })
+        conn.close()
+        
+    return {"files": files}
+    
+@app.post("/update-ocr-text")
+def update_ocr_text(
+    filename: str = Form(...), 
+    page_number: int = Form(...), 
+    new_text: str = Form(...)
+):
+    """డేటాబేస్‌లోని OCR టెక్స్ట్‌ను మాన్యువల్‌గా సరిదిద్దడానికి"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            UPDATE pdf_text_index 
+            SET extracted_text = %s 
+            WHERE filename = %s AND page_number = %s
+        ''', (new_text, filename, page_number))
+        
+        conn.commit()
+        conn.close()
+        
+        return {"status": "success", "message": f"పేజీ {page_number} టెక్స్ట్ విజయవంతంగా అప్‌డేట్ చేయబడింది!"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 @app.get('/api/current-user')
 def get_current_user(request: Request):
@@ -338,8 +429,20 @@ def download_book(request: Request, book_page_url: str = Query(...), title: str 
         elif source == "TTD Ebooks": ttd_scraper.download(book_page_url, title, filepath)
         else: svk_scraper.download(book_page_url, title, filepath)
             
-        log_user_activity(request, "Download", f"డౌన్‌లోడ్: '{title}' ({source})", "Success")
-        return {"status": "success", "message": f"Saved to {filepath}", "file_url": f"/downloads/{filename}"}
+        # 🌟 ఇక్కడ డౌన్‌లోడ్ అయిన వెంటనే గూగుల్ డ్రైవ్‌కి పంపడం
+        drive_link = None
+        if os.path.exists(filepath):
+            drive_link = upload_pdf_to_drive(filepath, filename)
+            print(f"Google Drive Permanent Link: {drive_link}")
+
+        log_user_activity(request, "Download", f"డౌన్‌లోడ్ & డ్రైవ్ సేవ్: '{title}' ({source})", "Success")
+        
+        return {
+            "status": "success", 
+            "message": f"Saved and uploaded to Drive!", 
+            "file_url": f"/downloads/{filename}",
+            "drive_link": drive_link
+        }
     except Exception as e:
         log_user_activity(request, "Download", f"విఫలం: '{title}' | ఎర్రర్: {str(e)}", "Failed")
         return {"status": "error", "message": str(e)}    
@@ -361,9 +464,29 @@ def list_downloaded_books(request: Request):
     
     files = []
     if os.path.exists(DOWNLOAD_DIR):
-        for f in os.listdir(DOWNLOAD_DIR):
-            if f.endswith('.pdf'):
-                files.append(f)
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            for f in os.listdir(DOWNLOAD_DIR):
+                if f.endswith('.pdf'):
+                    # 🌟 డేటాబేస్‌లో ఈ ఫైల్‌కి OCR పూర్తయిందో లేదో చెక్ చేయడం
+                    cursor.execute("SELECT 1 FROM pdf_text_index WHERE filename = %s LIMIT 1", (f,))
+                    is_done = cursor.fetchone() is not None
+                    
+                    # ఫైల్ పేరుతో పాటు స్టేటస్‌ను కూడా పంపడం
+                    files.append({
+                        "filename": f,
+                        "ocr_done": is_done
+                    })
+            conn.close()
+        except Exception as e:
+            print(f"Database error: {e}")
+            # డేటాబేస్ ఎర్రర్ వస్తే డీఫాల్ట్‌గా పంపడం
+            for f in os.listdir(DOWNLOAD_DIR):
+                if f.endswith('.pdf'):
+                    files.append({"filename": f, "ocr_done": False})
+
     return {"files": files}
 
 @app.post("/run-special-ocr")
@@ -421,7 +544,53 @@ def run_special_ocr(request: Request, filename: str = Query(...)):
                 
         conn.commit()
         conn.close()
-        return {"status": "success", "message": f"'{book_title}' పుస్తకానికి OCR పూర్తి అయింది!"}
+
+        # 🌟 ఇక్కడ గూగుల్ డ్రైవ్‌కి అప్‌లోడ్ చేసి పర్మినెంట్ లింక్ పొందవచ్చు
+        drive_link = upload_pdf_to_drive(filepath, filename)
+        print(f"Google Drive Permanent Link: {drive_link}")
+
+        return {
+            "status": "success", 
+            "message": f"'{book_title}' పుస్తకానికి OCR పూర్తి అయింది మరియు డ్రైవ్‌కి భద్రపరచబడింది!",
+            "drive_link": drive_link
+        }
+        
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+    
+from fastapi import Form
+
+@app.get("/get-ocr-text")
+def get_ocr_text(filename: str, page_number: int):
+    """డేటాబేస్ నుండి నిర్దిష్ట పేజీ యొక్క OCR టెక్స్ట్ తీసుకురావడానికి"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT extracted_text FROM pdf_text_index WHERE filename = %s AND page_number = %s", (filename, page_number))
+        result = cursor.fetchone()
+        conn.close()
+        
+        if result:
+            return {"status": "success", "text": result[0]}
+        else:
+            return {"status": "error", "message": "ఈ పేజీకి సంబంధించిన OCR డేటా కనుగొనబడలేదు. ముందుగా OCR రన్ చేశారో లేదో చెక్ చేయండి."}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/update-ocr-text")
+def update_ocr_text(filename: str = Form(...), page_number: int = Form(...), new_text: str = Form(...)):
+    """ఎడిట్ చేసిన కొత్త టెక్స్ట్‌ను డేటాబేస్‌లో అప్‌డేట్ చేయడానికి"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE pdf_text_index 
+            SET extracted_text = %s 
+            WHERE filename = %s AND page_number = %s
+        ''', (new_text, filename, page_number))
+        conn.commit()
+        conn.close()
+        return {"status": "success", "message": f"పేజీ {page_number} లోని టెక్స్ట్ విజయవంతంగా సేవ్ చేయబడింది!"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
@@ -431,30 +600,30 @@ def generate_ai_summary(query, snippets_list):
         return "⚠️ హెచ్చరిక: `.env` ఫైల్‌లో 'GEMINI_API_KEY' లభించలేదు. API కీ ని అమర్చండి."
 
     if not snippets_list:
-        return "శోధన ఫలితాలు లభించలేదు."
+        return "మీరు అడిగిన ప్రశ్నకు సంబంధించిన సమాచారం ప్రస్తుత గ్రంథాలలో లభించలేదు."
 
     try:
-        # 🌟 నూతన గూగుల్ GenAI క్లయింట్ సెటప్
         client = genai.Client(api_key=api_key)
         
         combined_text = "\n".join([f"- గ్రంథం: {s['book_title']} (పేజీ {s['page_number']}): {s['snippet']}" for s in snippets_list])
         
-        prompt = f"""కింద ఇవ్వబడిన గ్రంథ శోధన ఫలితాల (Results) ఆధారంగా మాత్రమే '{query}' అనే అంశంపై ఒక సమగ్ర పరిశోధక విశ్లేషణను (Research & Analytical Summary) అచ్చతెలుగులో రూపొందించండి. ఫలితాలలో లేని బయటి అంశాలను చేర్చవద్దు.
+        # 🌟 ప్రాంప్ట్: కేవలం పదం గురించి కాకుండా, అడిగిన ప్రశ్నకు సమాధానం ఇచ్చేలా మార్పు
+        prompt = f"""కింద ఇవ్వబడిన గ్రంథాలలోని సమాచారం (Snippets) ఆధారంగా, యూజర్ అడిగిన ఈ ప్రశ్నకు లేదా అంశానికి ('{query}') స్పష్టమైన, విశ్లేషణాత్మకమైన సమాధానాన్ని అచ్చతెలుగులో ఇవ్వండి. 
+        
+        యూజర్ ప్రశ్న/అంశం: {query}
+        
+        గమనిక: కేవలం లభ్యమైన గ్రంథాల సమాచారం ఆధారంగా మాత్రమే సమాధానం రాయండి. బయటి అంశాలను చేర్చవద్దు.
 
-ఈ క్రింది పరిశోధనాత్మక పద్ధతిలో విశ్లేషణ ఇవ్వండి:
+        ఈ క్రింది పద్ధతిలో విశ్లేషణ ఇవ్వండి:
+        1. **సమాధానం/సారాంశం:** (ప్రశ్నకు నేరుగా సమాధానం)
+        2. **గ్రంథాల ఆధారాలు:** (ఏ గ్రంథంలో, ఏ పేజీలో ఈ వివరాలు దొరికాయి మరియు అందులోని ప్రయోగాలు)
+        3. **వివరణ:** (మరింత లోతైన విశ్లేషణ లేదా విశేషాలు)
 
-1. **సందర్భం:** (లభ్యమైన ఫలితాలలో ఈ అంశం ఏ సందర్భంలో ప్రస్తావించబడింది?)
-2. **ప్రయోగాలు:** (గ్రంథాలలో చూపబడిన ప్రయోగాలు లేదా ఉదాహరణల పరిశీలన)
-3. **గ్రంథాంతర అభిప్రాయాలు:** (ఫలితాలలో వేర్వేరు పండితులు, గ్రంథాల కోణాల నుండి ఏమి నిరూపించబడింది?)
-4. **విశేషాలు:** (ఈ శోధన ఫలితాల నుండి తేలిన ప్రధాన విశ్లేషణాత్మక సారాంశం)
+        గ్రంథాల సమాచారం (Snippets):
+        {combined_text}"""
 
-శోధన ఫలితాలు:
-{combined_text}"""
-
-        # 🌟 గూగుల్ సూచించిన ఏకైక యాక్టివ్ మోడల్
-        models_to_try = [
-            'gemini-3.8-flash'
-        ]
+        # గూగుల్ సూచించిన వేగవంతమైన మోడల్
+        models_to_try = ['gemini-3.8-flash']
         
         for model_name in models_to_try:
             for attempt in range(2):
@@ -478,7 +647,7 @@ def generate_ai_summary(query, snippets_list):
 
 @app.get("/search-pdf-highlight")
 def search_pdf_highlight(request: Request, query: str = Query(...)):
-    """నిర్దిష్ట పదం కోసం వెతికి, దాని బాక్స్ కోఆర్డినేట్స్ మరియు పేజీ ఇమేజ్‌ని రిటర్న్ చేయడం"""
+    """ప్రశ్నలు లేదా పదాల కోసం వెతికి, డేటాబేస్ నుండి సమాచారాన్ని AI కి పంపడం"""
     user = request.session.get('user')
     if not user: return {"error": "Unauthorized"}
     
@@ -486,21 +655,65 @@ def search_pdf_highlight(request: Request, query: str = Query(...)):
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
+    # 🌟 1. ముందుగా యథాతథంగా (Exact Match) వెతకడం
     cursor.execute('''
         SELECT book_title, filename, page_number, extracted_text, word_boxes 
         FROM pdf_text_index 
         WHERE extracted_text ILIKE %s 
         LIMIT 20
     ''', (f"%{cleaned_query}%",))
-    
     matches = cursor.fetchall()
+    
+    # 🌟 2. ఒకవేళ దొరకకపోతే, ప్రశ్నలోని ముఖ్యమైన పదాలను (Keywords) విడదీసి వెతకడం
+    if not matches:
+        # 3 అక్షరాల కన్నా పెద్దవైన పదాలను (లో, కి, కు లాంటివి వదిలేసి) తీసుకోవడం
+        words = [w for w in cleaned_query.split() if len(w) > 3] 
+        if not words:
+            words = cleaned_query.split()
+            
+        # అత్యంత పొడవైన (ముఖ్యమైన) 2 పదాలను ఎంచుకోవడం
+        significant_words = sorted(words, key=len, reverse=True)[:2]
+        
+        if significant_words:
+            # రెండు ముఖ్యమైన పదాలు ఉన్న పేజీల కోసం (AND కండిషన్)
+            conditions = " AND ".join(["extracted_text ILIKE %s"] * len(significant_words))
+            params = [f"%{w}%" for w in significant_words]
+            cursor.execute(f'''
+                SELECT book_title, filename, page_number, extracted_text, word_boxes 
+                FROM pdf_text_index 
+                WHERE {conditions}
+                LIMIT 20
+            ''', tuple(params))
+            matches = cursor.fetchall()
+            
+            # 🌟 3. అప్పటికీ దొరకకపోతే, కేవలం అత్యంత ముఖ్యమైన ఒకే ఒక్క పదంతో (OR కండిషన్) వెతకడం
+            if not matches:
+                cursor.execute('''
+                    SELECT book_title, filename, page_number, extracted_text, word_boxes 
+                    FROM pdf_text_index 
+                    WHERE extracted_text ILIKE %s 
+                    LIMIT 20
+                ''', (f"%{significant_words[0]}%",))
+                matches = cursor.fetchall()
+                
     conn.close()
     
     results = []
     for m in matches:
         text = m['extracted_text'] or ""
+        
+        # క్వెరీలోని ఏ పదం దొరికిందో వెతికి స్నిప్పెట్ కట్ చేయడం
+        match_word = cleaned_query
         pos = text.find(cleaned_query)
-        snippet = text[max(0, pos - 40):min(len(text), pos + 80)].replace('\n', ' ')
+        if pos == -1:
+            for w in cleaned_query.split():
+                if len(w) > 3 and w in text:
+                    pos = text.find(w)
+                    match_word = w
+                    break
+        if pos == -1: pos = 0
+            
+        snippet = text[max(0, pos - 40):min(len(text), pos + 100)].replace('\n', ' ')
         
         filename = m.get('filename')
         highlighted_img_b64 = ""
@@ -529,12 +742,12 @@ def search_pdf_highlight(request: Request, query: str = Query(...)):
             "page_number": m['page_number'],
             "snippet": f"...{snippet}...",
             "word_boxes": m.get('word_boxes'),
-            "query": cleaned_query,
+            "query": match_word,
             "page_image": highlighted_img_b64
         })
         
-    # 🌟 Google AI (Gemini) సారాంశాన్ని ఇక్కడ కాల్ చేసి జతచేయాలి
-    ai_summary = generate_ai_summary(cleaned_query, results) if results else ""
+    # 🌟 Google AI (Gemini) కి ప్రశ్నను మరియు ఫలితాలను పంపడం
+    ai_summary = generate_ai_summary(cleaned_query, results) if results else "మీ ప్రశ్నకు తగిన సమాచారం లభించలేదు."
         
     return {
         "query": cleaned_query,

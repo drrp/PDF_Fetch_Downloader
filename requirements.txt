@@ -1,7 +1,10 @@
 fastapi
 uvicorn
+python-multipart
 google-genai
 google-cloud-vision
+google-api-python-client
+google-auth
 PyMuPDF
 psycopg2-binary
 authlib
