@@ -12,3 +12,4 @@ httpx
 beautifulsoup4
 pydantic
 pypdf
+gdown
