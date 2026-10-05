@@ -748,3 +748,13 @@ def search_pdf_highlight(request: Request, query: str = Query(...)):
         "ai_summary": ai_summary,
         "results": results
     }
+
+
+@app.get("/view-pdf")
+def view_pdf(filename: str, page: int = 1):
+    """డౌన్‌లోడ్స్ నుండి PDF ని నిర్దిష్ట పేజీతో ఓపెన్ చేయడానికి"""
+    file_path = os.path.join(DOWNLOAD_DIR, filename)
+    if os.path.exists(file_path):
+        # బ్రౌజర్ నేరుగా పేజీకి వెళ్లేలా ఫైల్ రెస్పాన్స్ పంపడం
+        return FileResponse(file_path, media_type='application/pdf')
+    return {"error": "File not found"}

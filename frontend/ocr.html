@@ -214,7 +214,11 @@
             let html = "";
             data.results.forEach((item) => {
               let imgHtml = item.page_image ? `<div class="mt-2 border text-center"><img src="data:image/png;base64,${item.page_image}" class="img-fluid" style="max-height: 380px;"></div>` : "";
-              let pdfBtnHtml = item.filename ? `<a href="${window.location.origin}/downloads/${item.filename}#page=${item.page_number}" target="_blank" class="btn btn-sm btn-outline-primary mt-3">పూర్తి PDF చూడండి</a>` : "";
+              // కొత్త కోడ్ (Render లో పర్ఫెక్ట్‌గా ఓపెన్ అవ్వడానికి):
+              let pdfFileUrl = `${window.location.origin}/downloads/${encodeURIComponent(item.filename)}`;
+              let pdfBtnHtml = item.filename ? `<a href="${pdfFileUrl}#page=${item.page_number}" target="_blank" class="btn btn-sm btn-outline-primary mt-3">పూర్తి PDF చూడండి (పేజీ ${item.page_number})</a>` : "";
+
+
               html += `<div class="col-md-6 mb-4"><div class="card p-3 shadow-sm h-100">
                           <h6 class="text-primary fw-bold">📚 ${item.book_title}</h6>
                           <span class="badge bg-secondary mb-2 align-self-start">పేజీ నంబర్: ${item.page_number}</span>
