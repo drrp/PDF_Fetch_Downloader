@@ -11,3 +11,4 @@ itsdangerous
 httpx
 beautifulsoup4
 pydantic
+pypdf
