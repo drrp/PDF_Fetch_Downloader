@@ -368,8 +368,8 @@ def logout(request: Request):
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
+# 🌟 ఫ్రంట్-ఎండ్ ఫోల్డర్‌లోనే ఇండెక్స్ ఫైల్ ఉండేలా సెట్ చేయడం
 FRONTEND_INDEX = os.path.join(FRONTEND_DIR, "index.html")
-ROOT_INDEX = os.path.join(BASE_DIR, "index.html")
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
@@ -383,9 +383,12 @@ def read_root(request: Request):
     if not user:
         login_page = os.path.join(FRONTEND_DIR, "login.html")
         return FileResponse(login_page) if os.path.exists(login_page) else RedirectResponse(url='/login/google')
+    
+    # 🌟 రూట్ లో కాకుండా 'frontend' ఫోల్డర్ లోని index.html ని రిటర్న్ చేయడం
     if os.path.exists(FRONTEND_INDEX):
         return FileResponse(FRONTEND_INDEX)
-    return FileResponse(ROOT_INDEX)
+    
+    return {"error": "index.html not found in frontend folder"}
 
 # స్క్రాపర్స్
 svk_scraper = SVKScraper()
@@ -463,6 +466,8 @@ def list_downloaded_books(request: Request):
     if not user: return {"error": "Unauthorized"}
     
     files = []
+    print(f"Checking download directory: {DOWNLOAD_DIR}") # టెర్మినల్‌లో ఫోల్డర్ పాత్ ప్రింట్ అవుతుంది
+    
     if os.path.exists(DOWNLOAD_DIR):
         try:
             conn = get_db_connection()
@@ -470,22 +475,22 @@ def list_downloaded_books(request: Request):
             
             for f in os.listdir(DOWNLOAD_DIR):
                 if f.endswith('.pdf'):
-                    # 🌟 డేటాబేస్‌లో ఈ ఫైల్‌కి OCR పూర్తయిందో లేదో చెక్ చేయడం
+                    # డేటాబేస్‌లో ఈ ఫైల్‌కి OCR పూర్తయిందో లేదో చెక్ చేయడం
                     cursor.execute("SELECT 1 FROM pdf_text_index WHERE filename = %s LIMIT 1", (f,))
                     is_done = cursor.fetchone() is not None
                     
-                    # ఫైల్ పేరుతో పాటు స్టేటస్‌ను కూడా పంపడం
                     files.append({
                         "filename": f,
                         "ocr_done": is_done
                     })
             conn.close()
         except Exception as e:
-            print(f"Database error: {e}")
-            # డేటాబేస్ ఎర్రర్ వస్తే డీఫాల్ట్‌గా పంపడం
+            print(f"Database error in list-downloaded-books: {e}")
             for f in os.listdir(DOWNLOAD_DIR):
                 if f.endswith('.pdf'):
                     files.append({"filename": f, "ocr_done": False})
+    else:
+        print(f"Warning: Download directory does not exist at {DOWNLOAD_DIR}")
 
     return {"files": files}
 
@@ -647,7 +652,7 @@ def generate_ai_summary(query, snippets_list):
 
 @app.get("/search-pdf-highlight")
 def search_pdf_highlight(request: Request, query: str = Query(...)):
-    """ప్రశ్నలు లేదా పదాల కోసం వెతికి, డేటాబేస్ నుండి సమాచారాన్ని AI కి పంపడం"""
+    """ఏకైక పరిమితులు (Limits) లేకుండా అన్ని OCR పుస్తకాల నుండి సమగ్ర శోధన చేయడం"""
     user = request.session.get('user')
     if not user: return {"error": "Unauthorized"}
     
@@ -655,65 +660,55 @@ def search_pdf_highlight(request: Request, query: str = Query(...)):
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
-    # 🌟 1. ముందుగా యథాతథంగా (Exact Match) వెతకడం
-    cursor.execute('''
-        SELECT book_title, filename, page_number, extracted_text, word_boxes 
-        FROM pdf_text_index 
-        WHERE extracted_text ILIKE %s 
-        LIMIT 20
-    ''', (f"%{cleaned_query}%",))
-    matches = cursor.fetchall()
+    matches = []
     
-    # 🌟 2. ఒకవేళ దొరకకపోతే, ప్రశ్నలోని ముఖ్యమైన పదాలను (Keywords) విడదీసి వెతకడం
-    if not matches:
-        # 3 అక్షరాల కన్నా పెద్దవైన పదాలను (లో, కి, కు లాంటివి వదిలేసి) తీసుకోవడం
-        words = [w for w in cleaned_query.split() if len(w) > 3] 
-        if not words:
-            words = cleaned_query.split()
-            
-        # అత్యంత పొడవైన (ముఖ్యమైన) 2 పదాలను ఎంచుకోవడం
-        significant_words = sorted(words, key=len, reverse=True)[:2]
+    # ప్రశ్నలోని ముఖ్యమైన పదాలను వేరు చేయడం
+    stop_words = ["గ్రంథంలో", "గ్రంథాలలో", "మాత్రమే", "ఉన్న", "ఇవ్వు", "అంటే", "ఏమిటి", "గురించి", "రాయండి", "తెలుపుము", "రూపాలను", "రూపాలు", "ఒకసారి", "యొక్క", "లో", "కి", "కు", "ను", "ని"]
+    words = [w for w in cleaned_query.split() if len(w) > 2 and w not in stop_words]
+    
+    if not words:
+        words = [w for w in cleaned_query.split() if len(w) > 3]
+
+    # అన్ని పుస్తకాల నుండి ఏ విధమైన లగ్జరీ లిమిట్స్ లేకుండా డేటాను సేకరించడం
+    if words:
+        conditions = " OR ".join(["extracted_text ILIKE %s" for _ in words])
+        params = [f"%{w}%" for w in words]
         
-        if significant_words:
-            # రెండు ముఖ్యమైన పదాలు ఉన్న పేజీల కోసం (AND కండిషన్)
-            conditions = " AND ".join(["extracted_text ILIKE %s"] * len(significant_words))
-            params = [f"%{w}%" for w in significant_words]
-            cursor.execute(f'''
-                SELECT book_title, filename, page_number, extracted_text, word_boxes 
-                FROM pdf_text_index 
-                WHERE {conditions}
-                LIMIT 20
-            ''', tuple(params))
-            matches = cursor.fetchall()
-            
-            # 🌟 3. అప్పటికీ దొరకకపోతే, కేవలం అత్యంత ముఖ్యమైన ఒకే ఒక్క పదంతో (OR కండిషన్) వెతకడం
-            if not matches:
-                cursor.execute('''
-                    SELECT book_title, filename, page_number, extracted_text, word_boxes 
-                    FROM pdf_text_index 
-                    WHERE extracted_text ILIKE %s 
-                    LIMIT 20
-                ''', (f"%{significant_words[0]}%",))
-                matches = cursor.fetchall()
-                
+        # 🌟 ఇక్కడ ఎలాంటి LIMIT లేదు - అందిన అన్ని పుస్తకాల పేజీలు వస్తాయి
+        cursor.execute(f'''
+            SELECT book_title, filename, page_number, extracted_text, word_boxes 
+            FROM pdf_text_index 
+            WHERE {conditions}
+            ORDER BY id DESC
+        ''', tuple(params))
+        matches = cursor.fetchall()
+        
+    # ఒకవేళ దొరకకపోతే జనరల్ వ్యాకరణం/సంధి పదాలతో వెతకడం (ఇక్కడ కూడా లిమిట్ లేదు)
+    if not matches:
+        cursor.execute('''
+            SELECT book_title, filename, page_number, extracted_text, word_boxes 
+            FROM pdf_text_index 
+            WHERE extracted_text ILIKE %s OR extracted_text ILIKE %s
+            ORDER BY id DESC
+        ''', ('%సంధి%', '%వ్యాకరణం%'))
+        matches = cursor.fetchall()
+        
     conn.close()
     
     results = []
     for m in matches:
         text = m['extracted_text'] or ""
         
-        # క్వెరీలోని ఏ పదం దొరికిందో వెతికి స్నిప్పెట్ కట్ చేయడం
-        match_word = cleaned_query
-        pos = text.find(cleaned_query)
-        if pos == -1:
-            for w in cleaned_query.split():
-                if len(w) > 3 and w in text:
-                    pos = text.find(w)
-                    match_word = w
-                    break
+        pos = -1
+        matched_w = cleaned_query
+        for w in words:
+            pos = text.find(w)
+            if pos != -1:
+                matched_w = w
+                break
         if pos == -1: pos = 0
             
-        snippet = text[max(0, pos - 40):min(len(text), pos + 100)].replace('\n', ' ')
+        snippet = text[max(0, pos - 80):min(len(text), pos + 250)].replace('\n', ' ')
         
         filename = m.get('filename')
         highlighted_img_b64 = ""
@@ -742,11 +737,10 @@ def search_pdf_highlight(request: Request, query: str = Query(...)):
             "page_number": m['page_number'],
             "snippet": f"...{snippet}...",
             "word_boxes": m.get('word_boxes'),
-            "query": match_word,
+            "query": matched_w,
             "page_image": highlighted_img_b64
         })
         
-    # 🌟 Google AI (Gemini) కి ప్రశ్నను మరియు ఫలితాలను పంపడం
     ai_summary = generate_ai_summary(cleaned_query, results) if results else "మీ ప్రశ్నకు తగిన సమాచారం లభించలేదు."
         
     return {

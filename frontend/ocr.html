@@ -30,7 +30,7 @@
 
       <div class="card shadow-sm border-primary mb-4">
         <div class="card-body bg-light">
-          <!-- 🌟 3 ట్యాబ్స్ ఇక్కడ ఉన్నాయి -->
+          <!-- 🌟 3 ట్యాబ్స్ -->
           <ul class="nav nav-tabs" id="ocrTab" role="tablist">
             <li class="nav-item">
               <a class="nav-link active" id="search-tab" data-bs-toggle="tab" href="#searchPanel" role="tab">🔍 పుస్తకాల లోపల వెతకండి</a>
@@ -44,10 +44,10 @@
           </ul>
 
           <div class="tab-content pt-3" id="ocrTabContent">
-            <!-- 1. అడ్వాన్స్‌డ్ సెర్చ్ -->
+            <!-- 1. అడ్వాన్స్‌డ్ సెర్చ్ & RAG విశ్లేషణ -->
             <div class="tab-pane fade show active" id="searchPanel" role="tabpanel">
               <div class="input-group mb-3">
-                <input type="text" id="advancedQuery" class="form-control" placeholder="పుస్తకాల లోపల వెతకవలసిన పదం..." />
+                <input type="text" id="advancedQuery" class="form-control" placeholder="ప్రశ్న లేదా పదం టైప్ చేయండి (ఉదా: యడాగమ సంధి రూపాలు)..." />
                 <button class="btn btn-dark" type="button" onclick="runAdvancedSearch()">శోధించు</button>
               </div>
               <div id="aiSummaryCard" class="card mb-4 shadow-sm border-success bg-white" style="display: none">
@@ -57,7 +57,7 @@
               <div id="advancedResults" class="row"></div>
             </div>
 
-            <!-- 2. మాన్యువల్ OCR -->
+            <!-- 2. మాన్యువల్ OCR ట్రిగ్గర్ -->
             <div class="tab-pane fade" id="ocrPanel" role="tabpanel">
               <p class="text-muted">మీరు డౌన్‌లోడ్ చేసిన పుస్తకాల నుండి OCR రన్ చేయవలసిన ఫైల్‌ను ఎంచుకోండి:</p>
               <div class="input-group mb-3">
@@ -67,7 +67,7 @@
               <div id="ocrStatus" class="fw-bold mt-2"></div>
             </div>
 
-            <!-- 🌟 3. టెక్స్ట్ ఎడిట్ ప్యానెల్ (కొత్తది) -->
+            <!-- 3. టెక్స్ట్ ఎడిట్ ప్యానెల్ -->
             <div class="tab-pane fade" id="editPanel" role="tabpanel">
               <p class="text-muted">సవరించాల్సిన పుస్తకాన్ని మరియు పేజీ నంబర్‌ను ఎంచుకోండి:</p>
               <div class="row g-2 mb-3">
@@ -97,7 +97,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script>
-      // డ్రాప్‌డౌన్స్ లోడ్ చేయడానికి రీ-యూజబుల్ ఫంక్షన్
+      // డ్రాప్‌డౌన్స్ లోడ్ చేసి స్టేటస్ బ్యాడ్జ్ (✅/⏳) చూపించే ఫంక్షన్
       async function loadDownloadedBooksForOCR(selectId) {
         const select = document.getElementById(selectId);
         select.innerHTML = "<option value=''>ఫైళ్లను లోడ్ చేస్తోంది...</option>";
@@ -112,11 +112,9 @@
               let isOcrDone = (typeof f === 'object') ? f.ocr_done : false;
               opt.value = filename;
               
-              let statusIcon = "";
-              if (typeof f === 'object') {
-                  statusIcon = isOcrDone ? "✅ [పూర్తయింది] - " : "⏳ [చేయాలి] - ";
-                  opt.style.color = isOcrDone ? "#28a745" : "#dc3545";
-              }
+              let statusIcon = isOcrDone ? "✅ [పూర్తయింది] - " : "⏳ [చేయాలి] - ";
+              opt.style.color = isOcrDone ? "#28a745" : "#dc3545";
+              
               opt.textContent = statusIcon + filename;
               select.appendChild(opt);
             });
@@ -146,7 +144,7 @@
         } catch (error) { statusDiv.innerHTML = `<span class='text-danger'>లోపం ఏర్పడింది.</span>`; }
       }
 
-      // 🌟 కొత్త ఫంక్షన్: టెక్స్ట్ తీసుకురావడం (Fetch Text)
+      // టెక్స్ట్ తీసుకురావడం (Fetch Text)
       async function fetchOCRText() {
           const filename = document.getElementById("editFilesSelect").value;
           const pageNum = document.getElementById("editPageNumber").value;
@@ -170,7 +168,7 @@
           } catch(e) { statusDiv.innerHTML = `<span class='text-danger'>లోపం ఏర్పడింది.</span>`; }
       }
 
-      // 🌟 కొత్త ఫంక్షన్: టెక్స్ట్ సేవ్ చేయడం (Save Text)
+      // టెక్స్ట్ సేవ్ చేయడం (Save Text)
       async function saveOCRText() {
           const filename = document.getElementById("editFilesSelect").value;
           const pageNum = document.getElementById("editPageNumber").value;
@@ -194,14 +192,14 @@
           } catch(e) { statusDiv.innerHTML = `<span class='text-danger'>సేవ్ చేయడంలో లోపం.</span>`; }
       }
 
-      // సెర్చ్ ఫంక్షన్ (మీ పాత కోడ్)
+      // కాన్సెప్ట్-బేస్డ్ సెర్చ్ & AI సారాంశం
       async function runAdvancedSearch() {
         const query = document.getElementById("advancedQuery").value.trim();
         const resultsDiv = document.getElementById("advancedResults");
         const summaryCard = document.getElementById("aiSummaryCard");
         const summaryText = document.getElementById("aiSummaryText");
 
-        if (!query) return alert("పదాన్ని టైప్ చేయండి.");
+        if (!query) return alert("పదాన్ని లేదా ప్రశ్నను టైప్ చేయండి.");
         resultsDiv.innerHTML = "<p class='text-muted p-3'>శోధిస్తోంది...</p>";
         summaryCard.style.display = "none";
 
