@@ -87,7 +87,8 @@
                 data-bs-toggle="tab"
                 href="#searchPanel"
                 role="tab"
-              >🔍 పుస్తకాల లోపల వెతకండి</a>
+                >🔍 పుస్తకాల లోపల వెతకండి</a
+              >
             </li>
             <li class="nav-item">
               <a
@@ -97,7 +98,8 @@
                 href="#ocrPanel"
                 role="tab"
                 onclick="loadDownloadedBooksForOCR()"
-              >⚡ కొత్త పుస్తకానికి OCR చేయండి</a>
+                >⚡ కొత్త పుస్తకానికి OCR చేయండి</a
+              >
             </li>
           </ul>
 
@@ -168,7 +170,7 @@
         </div>
       </div>
     </div>
-    
+
     <!-- 🌟 Marked.js లైబ్రరీ -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
@@ -263,10 +265,12 @@
                    </div>`
                 : `<p class='text-muted small'>పేజీ ప్రివీ అందుబాటులో లేదు</p>`;
 
+              // రెండర్ యొక్క ప్రస్తుత ఒరిజిన్ (Domain) ని ఆటోమేటిక్‌గా తీసుకుంటుంది
+              let baseUrl = window.location.origin;
               let pdfBtnHtml = item.filename
-                ? `<a href="/downloads/${item.filename}#page=${item.page_number}" target="_blank" class="btn btn-sm btn-outline-primary mt-3">
-                      <i class="fa-solid fa-file-pdf"></i> పూర్తి PDF లో ఈ పేజీని చూడండి
-                   </a>`
+                ? `<a href="${baseUrl}/downloads/${item.filename}#page=${item.page_number}" target="_blank" class="btn btn-sm btn-outline-primary mt-3">
+          <i class="fa-solid fa-file-pdf"></i> పూర్తి PDF లో ఈ పేజీని చూడండి
+       </a>`
                 : "";
 
               html += `

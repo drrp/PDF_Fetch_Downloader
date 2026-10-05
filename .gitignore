@@ -1,3 +1,10 @@
+credentials.json
+.env
+downloads/
+__pycache__/
+*.pyc
+
+
 # Python
 __pycache__/
 *.py[cod]
