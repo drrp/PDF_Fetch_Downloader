@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Advanced OCR & Search Hub - Telugu Digital Library Hub</title>
+
+    <link
+      rel="icon"
+      type="image/png"
+      href="https://auchithyam.com/images/LOGO.jpg"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/style.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+
+    <style>
+      /* ప్రధాన టెక్స్ట్ స్టైల్ */
+      .ai-formatted-content {
+        text-align: justify;
+        line-height: 1.8;
+        font-size: 16px;
+        color: #2c3e50;
+      }
+
+      /* హెడ్డింగ్స్ రంగు & డిజైన్ (ఉదా: 1. సందర్భ విశ్లేషణ) */
+      .ai-formatted-content h3 {
+        color: #1a5632; /* పచ్చని రంగు */
+        font-size: 1.25rem;
+        font-weight: 700;
+        margin-top: 1.5rem;
+        margin-bottom: 0.8rem;
+        border-bottom: 2px solid #e0e0e0;
+        padding-bottom: 5px;
+      }
+
+      /* బోల్డ్ అక్షరాల రంగు (ఉదా: **ఉదాహరణలు**) */
+      .ai-formatted-content strong {
+        color: #b71c1c; /* ముదురు ఎరుపు రంగు */
+        font-weight: 600;
+      }
+
+      /* లిస్ట్‌ల అమరిక */
+      .ai-formatted-content ul {
+        margin-bottom: 1.5rem;
+        padding-left: 25px;
+      }
+
+      .ai-formatted-content li {
+        margin-bottom: 8px;
+      }
+
+      /* విభజన రేఖ */
+      .ai-formatted-content hr {
+        border-top: 1px dashed #bdc3c7;
+        margin: 20px 0;
+      }
+    </style>
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  </head>
+  <body>
+    <div class="container my-5">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+          ⚙️ ప్రత్యేక OCR & పూర్తి పాఠ్య అన్వేషణ ప్యానెల్ (Advanced OCR Hub)
+        </h2>
+        <a href="/" class="btn btn-secondary">
+          <i class="fa-solid fa-arrow-left"></i> హోమ్‌పేజీకి వెళ్ళండి
+        </a>
+      </div>
+
+      <!-- OCR & Search Tabs Card -->
+      <div class="card shadow-sm border-primary mb-4">
+        <div class="card-body bg-light">
+          <ul class="nav nav-tabs" id="ocrTab" role="tablist">
+            <li class="nav-item">
+              <a
+                class="nav-link active"
+                id="search-tab"
+                data-bs-toggle="tab"
+                href="#searchPanel"
+                role="tab"
+              >🔍 పుస్తకాల లోపల వెతకండి</a>
+            </li>
+            <li class="nav-item">
+              <a
+                class="nav-link"
+                id="ocr-tab"
+                data-bs-toggle="tab"
+                href="#ocrPanel"
+                role="tab"
+                onclick="loadDownloadedBooksForOCR()"
+              >⚡ కొత్త పుస్తకానికి OCR చేయండి</a>
+            </li>
+          </ul>
+
+          <div class="tab-content pt-3" id="ocrTabContent">
+            <!-- 1. అడ్వాన్స్‌డ్ సెర్చ్ & హైలైటింగ్ ప్యానెల్ -->
+            <div
+              class="tab-pane fade show active"
+              id="searchPanel"
+              role="tabpanel"
+            >
+              <div class="input-group mb-3">
+                <input
+                  type="text"
+                  id="advancedQuery"
+                  class="form-control"
+                  placeholder="పుస్తకాల లోపల వెతకవలసిన పదం (ఉదా: అవధానం, అపాదాన)..."
+                />
+                <button
+                  class="btn btn-dark"
+                  type="button"
+                  onclick="runAdvancedSearch()"
+                >
+                  శోధించు
+                </button>
+              </div>
+
+              <!-- 🌟 గూగుల్ AI సారాంశం కనిపించే బాక్స్ -->
+              <div
+                id="aiSummaryCard"
+                class="card mb-4 shadow-sm border-success bg-white"
+                style="display: none"
+              >
+                <div class="card-header bg-success text-white fw-bold">
+                  <i class="fa-solid fa-wand-magic-sparkles me-2"></i> గూగుల్ AI
+                  (Gemini) సారాంశ విశ్లేషణ
+                </div>
+                <div class="card-body">
+                  <div id="aiSummaryText" class="ai-formatted-content"></div>
+                </div>
+              </div>
+
+              <div id="advancedResults" class="row"></div>
+            </div>
+
+            <!-- 2. మాన్యువల్ OCR ట్రిగ్గర్ ప్యానెల్ -->
+            <div class="tab-pane fade" id="ocrPanel" role="tabpanel">
+              <p class="text-muted">
+                మీరు డౌన్‌లోడ్ చేసిన పుస్తకాల నుండి OCR రన్ చేయవలసిన ఫైల్‌ను
+                ఎంచుకోండి:
+              </p>
+              <div class="input-group mb-3">
+                <select id="downloadedFilesSelect" class="form-select">
+                  <option value="">
+                    డౌన్‌లోడ్ చేసిన పుస్తకాలను లోడ్ చేస్తోంది...
+                  </option>
+                </select>
+                <button
+                  class="btn btn-success"
+                  type="button"
+                  onclick="triggerManualOCR()"
+                >
+                  OCR ప్రాసెస్ ప్రారంభించు
+                </button>
+              </div>
+              <div id="ocrStatus" class="fw-bold mt-2"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 🌟 Marked.js లైబ్రరీ -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <script>
+      async function loadDownloadedBooksForOCR() {
+        const select = document.getElementById("downloadedFilesSelect");
+        select.innerHTML =
+          "<option value=''>ఫైళ్లను లోడ్ చేస్తోంది...</option>";
+        try {
+          const res = await fetch("/list-downloaded-books");
+          const data = await res.json();
+          if (data.files && data.files.length > 0) {
+            select.innerHTML = "";
+            data.files.forEach((f) => {
+              let opt = document.createElement("option");
+              opt.value = f;
+              opt.textContent = f;
+              select.appendChild(opt);
+            });
+          } else {
+            select.innerHTML =
+              "<option value=''>డౌన్‌లోడ్ చేసిన PDF ఫైల్స్ ఏవీ కనుగొనబడలేదు.</option>";
+          }
+        } catch (err) {
+          select.innerHTML =
+            "<option value=''>ఫైళ్లను లోడ్ చేయడంలో లోపం ఏర్పడింది.</option>";
+        }
+      }
+
+      async function triggerManualOCR() {
+        const filename = document.getElementById("downloadedFilesSelect").value;
+        const statusDiv = document.getElementById("ocrStatus");
+
+        if (!filename) {
+          alert("దయచేసి ఒక ఫైల్‌ని ఎంచుకోండి.");
+          return;
+        }
+
+        statusDiv.innerHTML =
+          "<span class='text-info'>OCR ప్రాసెసింగ్ జరుగుతోంది, Google Vision API కి పంపబడింది. దయచేసి వేచి ఉండండి...</span>";
+
+        try {
+          const response = await fetch(
+            `/run-special-ocr?filename=${encodeURIComponent(filename)}`,
+            { method: "POST" },
+          );
+          const data = await response.json();
+
+          if (data.status === "success") {
+            statusDiv.innerHTML = `<span class='text-success'>${data.message}</span>`;
+          } else {
+            statusDiv.innerHTML = `<span class='text-danger'>ఎర్రర్: ${data.message}</span>`;
+          }
+        } catch (error) {
+          statusDiv.innerHTML = `<span class='text-danger'>సర్వర్ కమ్యూనికేషన్‌లో లోపం ఏర్పడింది.</span>`;
+        }
+      }
+
+      async function runAdvancedSearch() {
+        const query = document.getElementById("advancedQuery").value.trim();
+        const resultsDiv = document.getElementById("advancedResults");
+        const summaryCard = document.getElementById("aiSummaryCard");
+        const summaryText = document.getElementById("aiSummaryText");
+
+        if (!query) {
+          alert("దయచేసి వెతకవలసిన పదాన్ని టైప్ చేయండి.");
+          return;
+        }
+
+        resultsDiv.innerHTML =
+          "<p class='text-muted p-3'>పుస్తకాల లోపల శోధిస్తోంది...</p>";
+        summaryCard.style.display = "none";
+
+        try {
+          const response = await fetch(
+            `/search-pdf-highlight?query=${encodeURIComponent(query)}`,
+          );
+          const data = await response.json();
+
+          // 🌟 ఇక్కడ marked.parse() ద్వారా డిజైన్ అప్లై అవుతుంది
+          if (data.ai_summary) {
+            summaryText.innerHTML = marked.parse(data.ai_summary);
+            summaryCard.style.display = "block";
+          }
+
+          if (data.results && data.results.length > 0) {
+            let html = "";
+            data.results.forEach((item) => {
+              let imgHtml = item.page_image
+                ? `<div class="position-relative mt-2 border rounded overflow-hidden text-center bg-light" style="max-height: 400px;">
+                      <img src="data:image/png;base64,${item.page_image}" class="img-fluid" alt="Page Image" style="max-height: 380px;">
+                   </div>`
+                : `<p class='text-muted small'>పేజీ ప్రివీ అందుబాటులో లేదు</p>`;
+
+              let pdfBtnHtml = item.filename
+                ? `<a href="/downloads/${item.filename}#page=${item.page_number}" target="_blank" class="btn btn-sm btn-outline-primary mt-3">
+                      <i class="fa-solid fa-file-pdf"></i> పూర్తి PDF లో ఈ పేజీని చూడండి
+                   </a>`
+                : "";
+
+              html += `
+                  <div class="col-md-6 mb-4">
+                      <div class="card p-3 shadow-sm h-100 border-0 bg-white">
+                          <h6 class="text-primary fw-bold">📚 ${item.book_title}</h6>
+                          <span class="badge bg-secondary mb-2 align-self-start">పేజీ నంబర్: ${item.page_number}</span>
+                          <p class="text-muted small mb-2"><strong>సందర్భం:</strong> ${item.snippet}</p>
+                          ${imgHtml}
+                          ${pdfBtnHtml}
+                      </div>
+                  </div>
+              `;
+            });
+            resultsDiv.innerHTML = html;
+          } else {
+            resultsDiv.innerHTML = `<p class='text-danger p-3'>ఈ పదానికి సంబంధించిన ఫలితాలు కనుగొనబడలేదు. (ముందుగా ఆ పుస్తకానికి OCR రన్ చేశారో లేదో చెక్ చేయండి).</p>`;
+          }
+        } catch (error) {
+          console.error("Search error:", error);
+          resultsDiv.innerHTML = `<p class='text-danger p-3'>సెర్చ్ చేయడంలో లోపం ఏర్పడింది.</p>`;
+        }
+      }
+    </script>
+  </body>
+</html>

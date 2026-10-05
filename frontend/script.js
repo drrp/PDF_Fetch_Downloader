@@ -429,3 +429,41 @@ function confirmAppReset() {
 queryInput.addEventListener("keypress", (e) => {
   if (e.key === "Enter") performSearch();
 });
+
+
+
+async function runFullTextSearch() {
+    const query = document.getElementById('fullTextQuery').value.trim();
+    const resultsDiv = document.getElementById('fullTextResults');
+    
+    if (!query) {
+        alert("దయచేసి వెతకవలసిన పదాన్ని టైప్ చేయండి.");
+        return;
+    }
+    
+    resultsDiv.innerHTML = "<p class='text-muted'>వెతుకుతోంది...</p>";
+    
+    try {
+        const response = await fetch(`/full-text-search?query=${encodeURIComponent(query)}`);
+        const data = await response.json();
+        
+        if (data.results && data.results.length > 0) {
+            let html = `<p class='fw-bold text-success'>మొత్తం ${data.total_matches} ఫలితాలు దొరికాయి:</p><ul class='list-group'>`;
+            data.results.forEach(item => {
+                html += `
+                    <li class='list-group-item'>
+                        <strong>📚 ${item.book_title}</strong> <span class='badge bg-secondary'>పేజీ నంబర్: ${item.page_number}</span>
+                        <p class='mb-0 text-muted small mt-1'>${item.snippet}</p>
+                    </li>
+                `;
+            });
+            html += `</ul>`;
+            resultsDiv.innerHTML = html;
+        } else {
+            resultsDiv.innerHTML = `<p class='text-danger'>ఈ పదానికి సంబంధించిన ఫలితాలు ఏవీ కనుగొనబడలేదు.</p>`;
+        }
+    } catch (error) {
+        console.error("Search error:", error);
+        resultsDiv.innerHTML = `<p class='text-danger'>సెర్చ్ చేయడంలో లోపం ఏర్పడింది.</p>`;
+    }
+}

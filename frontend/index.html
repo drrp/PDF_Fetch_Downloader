@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Telugu Digital Library Dashboard</title>
 
-    <!-- Google Fonts -->
+    <!-- Google Fonts & Bootstrap -->
     <link
       rel="icon"
       type="image/png"
@@ -13,7 +13,10 @@
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <!-- CSS స్టైల్ షీట్ లింక్ -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="/static/style.css" />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=NTR&family=Tenali+Ramakrishna&display=swap"
@@ -28,13 +31,12 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   </head>
   <body>
-    <div class="dashboard-container">
-      <header class="dashboard-header">
+    <div class="dashboard-container container my-4">
+      <header class="dashboard-header mb-4">
         <div class="header-title">
           <h1>Telugu Digital Library Hub</h1>
           <p>నాలుగు ప్రధాన గ్రంథాలయాల ఏకైక అన్వేషణ వేదిక</p>
         </div>
-
         <!-- హెడర్ లో లాగిన్ సెక్షన్ -->
         <div id="auth-section">
           <a
@@ -45,7 +47,7 @@
             <i class="fa-brands fa-google"></i> Google తో లాగిన్ అవ్వండి
           </a>
 
-          <!-- లాగిన్ అయ్యాక కనిపించే ప్రొఫైల్ కార్డ్ (మొత్తానికి హిడెన్ గా ఉంటుంది) -->
+          <!-- లాగిన్ అయ్యాక కనిపించే ప్రొఫైల్ కార్డ్ -->
           <div
             id="user-profile-card"
             class="user-profile-card"
@@ -55,27 +57,16 @@
             <div class="user-details">
               <span id="user-name" class="user-name"></span>
               <a href="/logout" class="logout-link">లాగౌట్</a>
+
             </div>
-            <a
-              href="/profile"
-              style="
-                background: #3b82f6;
-                color: white;
-                padding: 8px 16px;
-                text-decoration: none;
-                border-radius: 6px;
-                font-weight: bold;
-                display: inline-flex;
-                align-items: center;
-                gap: 6px;
-                margin-right: 10px;
-              "
-            >
+            <a href="/profile" class="btn btn-primary btn-sm ms-2">
               <i class="fa-solid fa-user"></i> నా ప్రొఫైల్
             </a>
           </div>
+         
         </div>
-        <div class="header-stats">
+        
+        <div class="header-stats mt-2">
           <div class="stat-card">
             <span id="stat-total" class="number">0</span>
             <span class="label">పుస్తకాలు</span>
@@ -83,89 +74,84 @@
         </div>
       </header>
 
-      <div class="control-panel">
-        <div class="search-box-row">
-          <div class="input-wrapper">
-            <i class="fa-solid fa-magnifying-glass"></i>
+      <!-- మెయిన్ కంట్రోల్ ప్యానెల్ (లైబ్రరీ సెర్చ్) -->
+      <div class="control-panel card p-4 shadow-sm mb-4">
+        <div class="search-box-row d-flex gap-2 mb-3">
+          <div class="input-wrapper flex-grow-1 position-relative">
+            <i
+              class="fa-solid fa-magnifying-glass position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"
+            ></i>
             <input
               type="text"
               id="query"
+              class="form-control ps-5"
               value="ramayanamu"
               placeholder="పుస్తకం పేరు లేదా కీవర్డ్ టైప్ చేయండి..."
             />
           </div>
-          <button id="search-btn" class="search-btn" onclick="performSearch()">
+          <button
+            id="search-btn"
+            class="btn btn-success px-4"
+            onclick="performSearch()"
+          >
             <i class="fa-solid fa-search"></i> శోధించండి
           </button>
           <button
             onclick="confirmAppReset()"
-            class="btn btn-danger"
-            style="
-              background-color: #dc2626;
-              color: white;
-              border: none;
-              padding: 10px 16px;
-              border-radius: 8px;
-              cursor: pointer;
-              font-weight: 600;
-            "
+            class="btn btn-secondary px-3"
+            style="background-color: #dc2626"
           >
             <i class="fa-solid fa-rotate-right"></i> రీసెట్
           </button>
         </div>
 
         <!-- Four Source Checkboxes -->
-        <div class="sources-filters">
-          <label class="checkbox-label">
-            <input type="checkbox" id="chk-ia" checked />
-            <span>Internet Archive</span>
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" id="chk-svk" checked />
-            <span>SVK Library</span>
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" id="chk-manasu" checked />
-            <span>Manasu Foundation</span>
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" id="chk-ttd" />
-            <span>TTD Ebooks</span>
-          </label>
-          <!--<label class="checkbox-label">
-            <input type="checkbox" id="chk-shodhganga" disabled />
-            <span>Shodhganga</span>
-          </label>-->
+        <div class="sources-filters d-flex gap-4">
+          <label class="checkbox-label"
+            ><input type="checkbox" id="chk-ia" checked /> Internet
+            Archive</label
+          >
+          <label class="checkbox-label"
+            ><input type="checkbox" id="chk-svk" checked /> SVK Library</label
+          >
+          <label class="checkbox-label"
+            ><input type="checkbox" id="chk-manasu" checked /> Manasu
+            Foundation</label
+          >
+          <label class="checkbox-label"
+            ><input type="checkbox" id="chk-ttd" /> TTD Ebooks</label
+          >
         </div>
       </div>
 
+      <!-- మెయిన్ రిజల్ట్స్ సెక్షన్ -->
       <div class="results-section">
-        <div class="results-meta-bar">
-          <span id="results-title">శోధన ఫలితాలు</span>
+        <div
+          class="results-meta-bar d-flex justify-content-between align-items-center mb-3"
+        >
+          <span id="results-title" class="fw-bold">శోధన ఫలితాలు</span>
           <span id="results-count-label"></span>
         </div>
         <div id="results" class="results-area">
-          <!-- శోధన సూచనల నోట్ -->
-          <div class="search-instruction-note">
-            <i class="fa-solid fa-circle-info"></i>
+          <div class="search-instruction-note p-3 bg-white rounded shadow-sm">
+            <i class="fa-solid fa-circle-info text-info me-2"></i>
             <div>
               <div><strong>శోధన సూచనలు (Search Tips):</strong></div>
-              <div>
-                <ul>
-                  <li>Internet Archive నుండి ఏ భాషలోనైనా వెతకవచ్చు</li>
-                  <li>
-                    SVK Library &amp; TTD Ebooks ఇంగ్లీష్ లిపిలో మాత్రమే
-                    వెతకగలరు
-                  </li>
-                  <li>Manasu Foundation తెలుగు లిపిలో&nbsp;మాత్రమే వెతకగలరు</li>
-                </ul>
-              </div>
+              <ul>
+                <li>Internet Archive నుండి ఏ భాషలోనైనా వెతకవచ్చు</li>
+                <li>
+                  SVK Library &amp; TTD Ebooks ఇంగ్లీష్ లిపిలో మాత్రమే వెతకగలరు
+                </li>
+                <li>Manasu Foundation తెలుగు లిపిలో మాత్రమే వెతకగలరు</li>
+              </ul>
             </div>
           </div>
         </div>
       </div>
     </div>
-    <!-- స్క్రిప్ట్ లింక్ సరిగ్గా ఇలా ఉండాలి -->
+
+    <!-- Bootstrap JS & Main Script -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/static/script.js"></script>
   </body>
 </html>
