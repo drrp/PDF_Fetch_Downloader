@@ -17,3 +17,4 @@ pydantic
 pypdf
 gdown
 pytz
+psycopg2-binary

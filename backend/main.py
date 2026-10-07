@@ -6,8 +6,8 @@ import os
 import requests
 import re
 import uuid
-import sqlite3
 import psycopg2
+from psycopg2.extras import RealDictCursor
 import json
 import base64
 import fitz  # PyMuPDF
@@ -16,7 +16,6 @@ import pytz
 from google import genai
 from authlib.integrations.starlette_client import OAuth
 from google.cloud import vision
-from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
 from fastapi import Form
 from fastapi import FastAPI, Query, Request, Depends
@@ -31,59 +30,71 @@ from starlette.middleware.sessions import SessionMiddleware
 
 load_dotenv(override=True)
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
+FRONTEND_INDEX = os.path.join(FRONTEND_DIR, "index.html")
+DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
+
+# Render Environment Variable నుండి Supabase కనెక్షన్ లింక్ తీసుకుంటుంది
+DB_URL = os.getenv("DATABASE_URL")
+
+os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+
 def get_db_connection():
-    return psycopg2.connect(os.getenv("DATABASE_URL"))
+    if not DB_URL:
+        raise Exception("DATABASE_URL environment variable is not set!")
+    return psycopg2.connect(DB_URL)
 
 def init_db():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Users Table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            email TEXT PRIMARY KEY,
-            name TEXT,
-            picture TEXT,
-            last_login TEXT,
-            is_active BOOLEAN DEFAULT FALSE
-        )
-    ''')
-    
-    cursor.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT FALSE;')
-    
-    # Activities Table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS activities (
-            id SERIAL PRIMARY KEY,
-            email TEXT,
-            name TEXT,
-            picture TEXT,
-            action TEXT,
-            details TEXT,
-            time TEXT,
-            status TEXT DEFAULT 'Success'
-        )
-    ''')
-    
-    cursor.execute('ALTER TABLE activities ADD COLUMN IF NOT EXISTS status TEXT DEFAULT "Success";')
-    
-    # PDF Full-Text Search Index Table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS pdf_text_index (
-            id SERIAL PRIMARY KEY,
-            book_title TEXT,
-            filename TEXT,
-            page_number INT,
-            extracted_text TEXT,
-            word_boxes JSONB
-        )
-    ''');
-    
-    cursor.execute('ALTER TABLE pdf_text_index ADD COLUMN IF NOT EXISTS filename TEXT;')
-    cursor.execute('ALTER TABLE pdf_text_index ADD COLUMN IF NOT EXISTS word_boxes JSONB;')
-    
-    conn.commit()
-    conn.close()
+    if not DB_URL:
+        print("Warning: DATABASE_URL is not set.")
+        return
+        
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Users Table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                email TEXT PRIMARY KEY,
+                name TEXT,
+                picture TEXT,
+                last_login TEXT,
+                is_active BOOLEAN DEFAULT FALSE
+            )
+        ''')
+        
+        # Activities Table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS activities (
+                id SERIAL PRIMARY KEY,
+                email TEXT,
+                name TEXT,
+                picture TEXT,
+                action TEXT,
+                details TEXT,
+                time TEXT,
+                status TEXT DEFAULT 'Success'
+            )
+        ''')
+        
+        # PDF Full-Text Search Index Table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS pdf_text_index (
+                id SERIAL PRIMARY KEY,
+                book_title TEXT,
+                filename TEXT,
+                page_number INTEGER,
+                extracted_text TEXT,
+                word_boxes TEXT
+            )
+        ''')
+        
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Error initializing DB: {e}")
 
 init_db()
 
@@ -146,15 +157,23 @@ async def auth(request: Request):
             request.session['user'] = user_dict
             
             conn = get_db_connection()
-            cursor = conn.cursor()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
             IST = pytz.timezone('Asia/Kolkata')
             login_time = datetime.now(IST).strftime("%d-%m-%Y %I:%M %p")
-            cursor.execute('''
-                INSERT INTO users (email, name, picture, last_login)
-                VALUES (%s, %s, %s, %s)
-                ON CONFLICT (email) 
-                DO UPDATE SET name = EXCLUDED.name, picture = EXCLUDED.picture, last_login = EXCLUDED.last_login
-            ''', (user_dict.get('email'), user_dict.get('name'), user_dict.get('picture'), login_time))
+            
+            cursor.execute('SELECT email FROM users WHERE email = %s', (user_dict.get('email'),))
+            existing = cursor.fetchone()
+            
+            if existing:
+                cursor.execute('''
+                    UPDATE users SET name = %s, picture = %s, last_login = %s WHERE email = %s
+                ''', (user_dict.get('name'), user_dict.get('picture'), login_time, user_dict.get('email')))
+            else:
+                cursor.execute('''
+                    INSERT INTO users (email, name, picture, last_login, is_active)
+                    VALUES (%s, %s, %s, %s, TRUE)
+                ''', (user_dict.get('email'), user_dict.get('name'), user_dict.get('picture'), login_time))
+            
             conn.commit()
             conn.close()
                 
@@ -166,35 +185,6 @@ async def auth(request: Request):
         print(f"OAuth Error: {e}")
         
     return RedirectResponse(url='/', status_code=303)
-
-@app.get('/profile')
-def user_profile(request: Request):
-    user = request.session.get('user')
-    if not user:
-        return RedirectResponse(url='/', status_code=303)
-    profile_page = os.path.join(FRONTEND_DIR, "profile.html")
-    return FileResponse(profile_page) if os.path.exists(profile_page) else {"error": "profile.html not found"}
-
-@app.get('/user/activity-json')
-def get_user_activity(request: Request):
-    user = request.session.get('user')
-    if not user:
-        return {"error": "Not logged in"}
-    
-    conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-    cursor.execute("SELECT * FROM activities WHERE email = %s ORDER BY id DESC", (user.get('email'),))
-    activities = cursor.fetchall()
-    conn.close()
-    
-    return {
-        "user": user,
-        "activities": activities,
-        "stats": {
-            "searches": sum(1 for a in activities if a['action'] == 'Search'),
-            "downloads": sum(1 for a in activities if a['action'] == 'Download' and a['status'] == 'Success')
-        }
-    }
 
 @app.get('/admin')
 def admin_dashboard(request: Request):
@@ -214,9 +204,9 @@ def get_admin_users_json(request: Request):
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     cursor.execute("SELECT * FROM users")
-    users = cursor.fetchall()
+    users = [dict(row) for row in cursor.fetchall()]
     cursor.execute("SELECT * FROM activities ORDER BY id DESC")
-    activities = cursor.fetchall()
+    activities = [dict(row) for row in cursor.fetchall()]
     conn.close()
     
     return {
@@ -261,12 +251,6 @@ def logout(request: Request):
         except: pass
     request.session.clear()
     return RedirectResponse(url='/')
-
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
-FRONTEND_INDEX = os.path.join(FRONTEND_DIR, "index.html")
-DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
-os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 if os.path.exists(FRONTEND_DIR):
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
@@ -336,25 +320,28 @@ def download_book(request: Request, book_page_url: str = Query(...), title: str 
 def list_downloaded_books(request: Request):
     user = request.session.get('user')
     if not user: return {"error": "Unauthorized"}
+    
     files = []
     if os.path.exists(DOWNLOAD_DIR):
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
             for f in os.listdir(DOWNLOAD_DIR):
-                if f.endswith('.pdf'):
+                if f.lower().endswith('.pdf'):
                     cursor.execute("SELECT 1 FROM pdf_text_index WHERE filename = %s LIMIT 1", (f,))
                     is_done = cursor.fetchone() is not None
                     files.append({"filename": f, "ocr_done": is_done})
             conn.close()
-        except:
+        except Exception as e:
+            print("Error listing files with DB:", e)
             for f in os.listdir(DOWNLOAD_DIR):
-                if f.endswith('.pdf'):
+                if f.lower().endswith('.pdf'):
                     files.append({"filename": f, "ocr_done": False})
+                    
     return {"files": files}
 
 @app.post("/run-special-ocr")
-def run_special_ocr(request: Request, filename: str = Query(...)):
+def run_special_ocr(request: Request, filename: str = Query(...), start_page: int = Query(None), end_page: int = Query(None)):
     user = request.session.get('user')
     if not user: return {"error": "Unauthorized"}
     
@@ -366,16 +353,30 @@ def run_special_ocr(request: Request, filename: str = Query(...)):
     try:
         client = vision.ImageAnnotatorClient()
         doc = fitz.open(filepath)
+        total_pages = len(doc)
+        
+        start_idx = 0
+        end_idx = total_pages - 1
+        
+        if start_page is not None and start_page >= 1:
+            start_idx = start_page - 1
+        if end_page is not None and end_page <= total_pages:
+            end_idx = end_page - 1
+            
+        if start_idx > end_idx or start_idx >= total_pages:
+            return {"status": "error", "message": "దయచేసి సరైన పేజీ నంబర్లను ఎంచుకోండి."}
+            
         conn = get_db_connection()
         cursor = conn.cursor()
-        
         book_title = filename.rsplit('_', 1)[0]
-        cursor.execute("DELETE FROM pdf_text_index WHERE filename = %s", (filename,))
         image_context = vision.ImageContext(language_hints=["te", "en"])
 
-        for page_num in range(len(doc)):
+        for p_num in range(start_idx + 1, end_idx + 2):
+            cursor.execute("DELETE FROM pdf_text_index WHERE filename = %s AND page_number = %s", (filename, p_num))
+
+        for page_num in range(start_idx, end_idx + 1):
             page = doc[page_num]
-            pix = page.get_pixmap(dpi=200) # మెమరీ ఆప్టిమైజేషన్ కోసం DPI తగ్గించబడింది
+            pix = page.get_pixmap(dpi=200)
             image_bytes = pix.tobytes("png")            
             image = vision.Image(content=image_bytes)
             
@@ -406,7 +407,9 @@ def run_special_ocr(request: Request, filename: str = Query(...)):
                 
         conn.commit()
         conn.close()
-        return {"status": "success", "message": f"'{book_title}' పుస్తకానికి OCR పూర్తయింది!"}
+        
+        range_msg = f" (పేజీలు {start_idx + 1} నుండి {end_idx + 1} వరకు)" if (start_page or end_page) else " (పూర్తి పుస్తకం)"
+        return {"status": "success", "message": f"'{book_title}' కు OCR పూర్తయింది! {range_msg}"}
 
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -419,12 +422,26 @@ def run_special_ocr(request: Request, filename: str = Query(...)):
 def get_ocr_text(filename: str, page_number: int):
     try:
         conn = get_db_connection()
-        cursor = conn.cursor()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute("SELECT extracted_text FROM pdf_text_index WHERE filename = %s AND page_number = %s", (filename, page_number))
         result = cursor.fetchone()
         conn.close()
-        if result: return {"status": "success", "text": result[0]}
+        if result: return {"status": "success", "text": result["extracted_text"]}
         return {"status": "error", "message": "డేటా కనుగొనబడలేదు."}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+    
+@app.get("/get-indexed-books")
+def get_indexed_books(request: Request):
+    user = request.session.get('user')
+    if not user: return {"error": "Unauthorized"}
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("SELECT DISTINCT book_title FROM pdf_text_index")
+        books = [row['book_title'] for row in cursor.fetchall()]
+        conn.close()
+        return {"status": "success", "books": books}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
@@ -447,33 +464,28 @@ def generate_ai_summary(query, snippets_list):
 
     try:
         client = genai.Client(api_key=api_key)
-        
-        # పూర్తి స్నిప్పెట్స్‌ను కంబైన్ చేయడం
         combined_text = "\n".join([f"- గ్రంథం: {s['book_title']} (పేజీ {s['page_number']}): {s['snippet']}" for s in snippets_list])
         
-        prompt = f"""కింద ఇవ్వబడిన అన్ని గ్రంథాల (బాలవ్యాకరణం, ప్రౌఢవ్యాకరణం తదితర అన్నీ) పూర్తి సమాచారం ఆధారంగా, యూజర్ అడిగిన ఈ ప్రశ్నకు ('{query}') స్పష్టమైన, సమగ్రమైన, విశ్లేషణాత్మకమైన సమాధానాన్ని అచ్చతెలుగులో ఇవ్వండి. 
+        prompt = f"""కింద ఇవ్వబడిన అన్ని గ్రంథాల పూర్తి సమాచారం ఆధారంగా, యూజర్ అడిగిన ఈ ప్రశ్నకు ('{query}') స్పష్టమైన, సమగ్రమైన, విశ్లేషణాత్మకమైన సమాధానాన్ని తెలుగులో ఇవ్వండి. 
 
-        ⚠️ అత్యంత ముఖ్యం: జవాబులో ఎట్టి పరిస్థితుల్లోనూ లటెక్ (LaTeX) కోడింగ్ లేదా గణిత చిహ్నాలు ($\text{{...}}$) వాడవద్దు. సంధి రూపాలను లేదా పదాల కూర్పును ఎప్పుడూ సాధారణ తెలుగు అక్షరాలతో మాత్రమే రాయాలి. (ఉదాహరణకు: "నిర్జి + ఇంచు = నిర్జించు" అని మాత్రమే రాయండి).
+        ⚠️ అత్యంత ముఖ్యం: జవాబులో ఎట్టి పరిస్థితుల్లోనూ లటెక్ (LaTeX) కోడింగ్ లేదా గణిత చిహ్నాలు ($\text{{...}}$) వాడవద్దు. సంధి రూపాలను లేదా పదాల కూర్పును ఎప్పుడూ సాధారణ తెలుగు అక్షరాలతో మాత్రమే రాయాలి. (ఉదాహరణకు: "నిర్జి + ఇంచు = నిర్జించు" అని మాత్రమే రాయాలి). వివరణలకు బ్రాకెట్లో (గ్రంథం సంక్షిప్త నామం, పుట.) అని ఇవ్వాలి. యూజర్ ఇచ్చిన ప్రధానమైన కీవర్డు OCR Data లో లేకపోతే, ఈ ప్రశ్నగురించి ఎలాంటి సమాచారం అందుబాటులో లేదు అని స్పష్టంగ ఇవ్వాలి.
 
-        ఇవ్వవలసిన పద్ధతి:
-        1. **సమాధానం/సారాంశం:** (ప్రశ్నకు నేరుగా సమాధానం)
-        2. **గ్రంథాల ఆధారాలు:** (ఏ గ్రంథంలో, ఏ పేజీలో వివరాలు దొరికాయి)
-        3. **వివరణ:** (లోతైన విశ్లేషణ మరియు సూత్రాల విశేషాలు)
-
+        వెతికిన ప్రశ్నలో ముఖ్యమైన పదం డేటాలో లభ్యమైతే ఇవ్వవలసిన పద్ధతి:
+        1. **సూత్రం, వృత్తి, ఉదాహరణలు:** (అడిగిన ప్రశ్నకు సంబంధించిన అన్ని సూత్రాలు, సూత్రం క్రిందన వ్యాకర్తే సొంతగా ఏదైన "వృత్తి"ని ప్రస్తావిస్తే (వివరణ వాక్యాలు ఏమైన ఉంటే), అన్ని సూత్రాలకు ఇచ్చే అన్ని రకాల ఉదాహరణలు ఇవ్వాలి)
+        2. **విశ్లేషణలు:** (OCR DATA ఆధారంగా మాత్రమే, అంటే వ్యాఖ్యాతలు చెప్పిన విధంగా మాత్రమే తగిన విశ్లేషణలు, ఇతర విశేషాలు ఇవ్వాలి)
+        
         గ్రంథాల పూర్తి సమాచారం:
         {combined_text}"""
 
         chat = client.chats.create(model="gemini-3.8-flash")
         response = chat.send_message(prompt)
-        
         return response.text if response and response.text else "AI సేవలు అందుబాటులో లేవు."
     except Exception as e:
         print("Gemini AI Error:", str(e))
         return "సారాంశం రూపొందించడంలో సాంకేతిక లోపం ఏర్పడింది."
 
 @app.get("/search-pdf-highlight")
-def search_pdf_highlight(request: Request, query: str = Query(...)):
-    """బాలవ్యాకరణం, ప్రౌఢవ్యాకరణం సహా అన్ని పుస్తకాల మొత్తం OCR డేటా నుండి సమగ్రంగా శోధించడం"""
+def search_pdf_highlight(request: Request, query: str = Query(...), books: str = Query(None)):
     user = request.session.get('user')
     if not user: return {"error": "Unauthorized"}
     
@@ -481,44 +493,43 @@ def search_pdf_highlight(request: Request, query: str = Query(...)):
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
+    selected_books = [b.strip() for b in books.split(",")] if books else []
+    book_filter = ""
+    book_params = []
+    if selected_books:
+        placeholders = ",".join(["%s"] * len(selected_books))
+        book_filter = f" AND book_title IN ({placeholders})"
+        book_params = selected_books
+
     matches = []
-    
-    # చిన్న స్టాప్ వర్డ్స్ తొలగించి, అసలైన కీలక పదాలను వేరు చేయడం
     stop_words = ["లో", "కి", "కు", "ను", "ని", "యొక్క", "అంటే", "ఏమిటి", "ఇవ్వు", "గురించి"]
     words = [w for w in cleaned_query.split() if len(w) > 1 and w not in stop_words]
-    
-    if not words:
-        words = [cleaned_query]
+    if not words: words = [cleaned_query]
 
-    # 🌟 1. యూజర్ ఇచ్చిన పదాలు 'extracted_text' లో లేదా 'book_title' లో ఉన్నాయా అని అన్ని పుస్తకాల్లో ఏకకాలంలో వెతకడం
     if words:
-        # ప్రతి పదానికి both extracted_text మరియు book_title లో చెక్ చేసేలా కండిషన్
         conditions = " OR ".join(["extracted_text ILIKE %s OR book_title ILIKE %s" for _ in words])
         params = []
         for w in words:
             params.extend([f"%{w}%", f"%{w}%"])
-        
-        # ఎలాంటి లిమిట్స్ లేకుండా మొత్తం డేటాబేస్‌ను స్కాన్ చేయడం (బాలవ్యాకరణం & ప్రౌఢవ్యాకరణం రెండూ వస్తాయి)
+            
         cursor.execute(f'''
             SELECT book_title, filename, page_number, extracted_text, word_boxes 
             FROM pdf_text_index 
-            WHERE {conditions}
+            WHERE ({conditions}){book_filter}
             ORDER BY id DESC
-        ''', tuple(params))
-        matches = cursor.fetchall()
+        ''', tuple(params + book_params))
+        matches = [dict(row) for row in cursor.fetchall()]
         
-    # 🌟 2. ఒకవేళ విడి పదాలతో రాకపోతే, మొత్తం క్వెరీతో వెతకడం
     if not matches:
-        cursor.execute('''
+        cursor.execute(f'''
             SELECT book_title, filename, page_number, extracted_text, word_boxes 
             FROM pdf_text_index 
-            WHERE extracted_text ILIKE %s OR book_title ILIKE %s
+            WHERE (extracted_text ILIKE %s OR book_title ILIKE %s){book_filter}
             ORDER BY id DESC
-        ''', (f'%{cleaned_query}%', f'%{cleaned_query}%'))
-        matches = cursor.fetchall()
+        ''', tuple([f'%{cleaned_query}%', f'%{cleaned_query}%'] + book_params))
+        matches = [dict(row) for row in cursor.fetchall()]
 
-    # 🌟 3. అత్యంత ముఖ్యం: ఒకవేళ అప్పటికీ మ్యాచెస్ రాకపోతే, నేరుగా "బాలవ్యాకరణ" మరియు "ప్రౌఢవ్యాకరణ" పుస్తకాలను టార్గెట్ చేసి డేటా లాగడం
-    if not matches:
+    if not matches and not selected_books:
         cursor.execute('''
             SELECT book_title, filename, page_number, extracted_text, word_boxes 
             FROM pdf_text_index 
@@ -526,15 +537,13 @@ def search_pdf_highlight(request: Request, query: str = Query(...)):
             ORDER BY id DESC
             LIMIT 50
         ''', ('%బాలవ్యాకరణ%', '%ప్రౌఢవ్యాకరణ%'))
-        matches = cursor.fetchall()
+        matches = [dict(row) for row in cursor.fetchall()]
         
     conn.close()
     
     results = []
-    # దొరికిన అన్ని మ్యాచింగ్ ఫలితాలను AI విశ్లేషణ కోసం పంపడం
-    for m in matches[:50]:  
+    for m in matches[:50]:
         text = m['extracted_text'] or ""
-        
         pos = -1
         matched_w = cleaned_query
         for w in words:
@@ -545,7 +554,6 @@ def search_pdf_highlight(request: Request, query: str = Query(...)):
         if pos == -1: pos = 0
             
         snippet = text[max(0, pos - 120):min(len(text), pos + 350)].replace('\n', ' ')
-        
         filename = m.get('filename')
         highlighted_img_b64 = ""
         
@@ -555,7 +563,6 @@ def search_pdf_highlight(request: Request, query: str = Query(...)):
                     filename = f
                     break
                     
-        # మెమరీ మరియు స్పీడ్ కోసం మొదటి 4 ఫలితాలకు మాత్రమే PDF పేజీ ఇమేజ్ రెండర్ చేయడం
         if filename and len(results) < 4:
             filepath = os.path.join(DOWNLOAD_DIR, filename)
             if os.path.exists(filepath):
@@ -577,7 +584,7 @@ def search_pdf_highlight(request: Request, query: str = Query(...)):
             "filename": filename or "",
             "page_number": m['page_number'],
             "snippet": f"...{snippet}...",
-            "word_boxes": m.get('word_boxes'),
+            "word_boxes": json.loads(m['word_boxes']) if m.get('word_boxes') else [],
             "query": matched_w,
             "page_image": highlighted_img_b64
         })
