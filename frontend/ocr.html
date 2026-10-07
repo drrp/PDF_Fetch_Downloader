@@ -1,198 +1,472 @@
 <!doctype html>
-<html lang="en">
+<html lang="te">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Advanced OCR & Search Hub - Telugu Digital Library Hub</title>
+    <title>ఔచిత్యమ్ - తెలుగు సంప్రదాయ వ్యాకరణ అధ్యయనం - AI రీసెర్చ్ హబ్</title>
 
-    <link rel="icon" type="image/png" href="https://auchithyam.com/images/LOGO.jpg" />
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
-    <link rel="stylesheet" href="/static/style.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link
+      rel="icon"
+      type="image/png"
+      href="https://auchithyam.com/images/LOGO.jpg"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    
+    <!-- 🌟 తెలుగు గూగుల్ ఫాంట్స్ (Mandali, Ramabhadra, Suranna) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Mandali&family=Ramabhadra&family=Suranna&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <style>
-      .ai-formatted-content { text-align: justify; line-height: 1.8; font-size: 16px; color: #2c3e50; }
-      .ai-formatted-content h3 { color: #1a5632; font-size: 1.25rem; font-weight: 700; margin-top: 1.5rem; margin-bottom: 0.8rem; border-bottom: 2px solid #e0e0e0; padding-bottom: 5px; }
-      .ai-formatted-content strong { color: #b71c1c; font-weight: 600; }
-      .ai-formatted-content ul { margin-bottom: 1.5rem; padding-left: 25px; }
-      .ai-formatted-content li { margin-bottom: 8px; }
-      .ai-formatted-content hr { border-top: 1px dashed #bdc3c7; margin: 20px 0; }
-      select option { padding: 5px; font-weight: 500; }
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #971c09d2;
+        color: #334155;
+      }
+      .telugu-title {
+        font-family: 'Suranna', serif;
+      }
+      .telugu-body {
+        font-family: 'Mandali', sans-serif;
+      }
+      .dashboard-header {
+        background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+        color: white;
+        padding: 25px 30px;
+        border-radius: 16px;
+        box-shadow: 0 4px 12px rgba(30, 58, 138, 0.15);
+        margin-bottom: 30px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .dashboard-card {
+        background: white;
+        border-radius: 16px;
+        border: none;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        margin-bottom: 25px;
+        transition: all 0.3s ease;
+      }
+      .ai-formatted-content {
+        font-family: 'Mandali', sans-serif;
+        text-align: justify;
+        line-height: 1.8;
+        font-size: 22px;
+        color: #1e293b;
+      }
+      .ai-formatted-content h3 {
+        font-family: 'Ramabhadra', sans-serif;
+        color: #15803d;
+        font-size: 2rem;
+        font-weight: 400;
+        margin-top: 1.2rem;
+        margin-bottom: 0.6rem;
+        border-bottom: 2px solid #dcfce7;
+        padding-bottom: 4px;
+      }
+      .ai-formatted-content strong {
+        font-family: 'Ramabhadra', sans-serif;
+        color: #b91c1c;
+        font-weight: 400;
+      }
+      .history-item {
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 20px;
+        background: #ffffff;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        transition: 0.2s;
+      }
+      .history-item:hover {
+        box-shadow: 0 6px 12px rgba(0,0,0,0.05);
+        border-color: #cbd5e1;
+      }
+      /* మోడల్ & ఫామ్స్ కోసం తెలుగు ఫాంట్ స్టైలింగ్ */
+      .modal-content {
+        font-family: 'Mandali', sans-serif;
+      }
+      .form-select, .form-control {
+        font-family: 'Mandali', sans-serif;
+        font-size: 17px;
+      }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   </head>
   <body>
-    <div class="container my-5">
-      <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>⚙️ ప్రత్యేక OCR & పూర్తి పాఠ్య అన్వేషణ ప్యానెల్</h2>
-        <a href="/" class="btn btn-secondary"><i class="fa-solid fa-arrow-left"></i> హోమ్‌పేజీకి వెళ్ళండి</a>
+    <div class="container my-4">
+      
+      <!-- డ్యాష్‌బోర్డ్ హెడర్ -->
+      <div class="dashboard-header">
+        <div>
+          <h2 class="fw-bold mb-1 telugu-title" style="font-size: 28px;">ఔచిత్యమ్ - తెలుగు సంప్రదాయ వ్యాకరణ అధ్యయనం</h2>
+          <p class="mb-0 text-white-50 telugu-title" style="font-size: 18px;">బాల- ప్రౌఢవ్యాకరణాల AI రీసెర్చ్ హబ్</p>
+        </div>
+        <div class="d-flex gap-2">
+          <div id="adminToolsBtnContainer"></div>
+          <a href="/" class="btn btn-light fw-bold px-3 shadow-sm telugu-title" style="color: #1e3a8a; font-size: 16px;">
+            <i class="fa-solid fa-house me-1"></i> హోమ్‌పేజీ
+          </a>
+        </div>
       </div>
 
-      <div class="card shadow-sm border-primary mb-4">
-        <div class="card-body bg-light">
-          <!-- 🌟 3 ట్యాబ్స్ -->
-          <ul class="nav nav-tabs" id="ocrTab" role="tablist">
-            <li class="nav-item">
-              <a class="nav-link active" id="search-tab" data-bs-toggle="tab" href="#searchPanel" role="tab">🔍 పుస్తకాల లోపల వెతకండి</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" id="ocr-tab" data-bs-toggle="tab" href="#ocrPanel" role="tab" onclick="loadDownloadedBooksForOCR('downloadedFilesSelect')">⚡ కొత్త పుస్తకానికి OCR చేయండి</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" id="edit-tab" data-bs-toggle="tab" href="#editPanel" role="tab" onclick="loadDownloadedBooksForOCR('editFilesSelect')">📝 టెక్స్ట్ సరిదిద్దండి (Edit)</a>
-            </li>
-          </ul>
+      <!-- మెయిన్ డ్యాష్‌బోర్డ్ కార్డ్ (సెర్చ్ మరియు AI విశ్లేషణ) -->
+      <div class="dashboard-card p-4">
+        <h4 class="fw-bold mb-3 telugu-title" style="color: #1e3a8a; font-size: 22px;"><i class="fa-solid fa-magnifying-glass me-2"></i>వ్యాకరణ పరిశోధన ప్రారంభించండి </h4>
+        
+        <div class="input-group mb-4 shadow-sm">
+          <input
+            type="text"
+            id="advancedQuery"
+            class="form-control form-control-lg telugu-body"
+            style="font-size: 18px;"
+            placeholder="ప్రశ్న లేదా పదం టైప్ చేయండి (ఉదా: యడాగమ సంధి రూపాలు)..."
+          />
+          <button class="btn btn-primary px-4 fw-bold telugu-title" style="font-size: 18px;" type="button" onclick="runAdvancedSearch()">
+            <i class="fa-solid fa-search me-1"></i> శోధించు
+          </button>
+        </div>
 
-          <div class="tab-content pt-3" id="ocrTabContent">
-            <!-- 1. అడ్వాన్స్‌డ్ సెర్చ్ & RAG విశ్లేషణ -->
-            <div class="tab-pane fade show active" id="searchPanel" role="tabpanel">
-              <div class="input-group mb-3">
-                <input type="text" id="advancedQuery" class="form-control" placeholder="ప్రశ్న లేదా పదం టైప్ చేయండి (ఉదా: యడాగమ సంధి రూపాలు)..." />
-                <button class="btn btn-dark" type="button" onclick="runAdvancedSearch()">శోధించు</button>
-              </div>
-              <div id="aiSummaryCard" class="card mb-4 shadow-sm border-success bg-white" style="display: none">
-                <div class="card-header bg-success text-white fw-bold"><i class="fa-solid fa-wand-magic-sparkles me-2"></i> గూగుల్ AI సారాంశ విశ్లేషణ</div>
-                <div class="card-body"><div id="aiSummaryText" class="ai-formatted-content"></div></div>
-              </div>
-              <div id="advancedResults" class="row"></div>
+        <div id="aiSummaryCard" class="card mb-4 shadow-sm border-success bg-white rounded-4" style="display: none">
+          <div class="card-header bg-success text-white fw-bold py-3 rounded-top-4 telugu-title" style="font-size: 20px;">
+            <i class="fa-solid fa-wand-magic-sparkles me-2"></i> గూగుల్ AI సారాంశ విశ్లేషణ
+          </div>
+          <div class="card-body p-4">
+            <div id="aiSummaryText" class="ai-formatted-content"></div>
+          </div>
+        </div>
+
+        <div id="advancedResults" class="row"></div>
+      </div>
+
+      <!-- AI రీసెర్చ్ హిస్టరీ & ఎక్స్‌పోర్ట్ సెక్షన్ (కొలాప్సిబుల్) -->
+      <div class="dashboard-card p-4">
+        <div class="d-flex justify-content-between align-items-center">
+          <h4 class="fw-bold mb-0 telugu-title" style="color: #1e3a8a; font-size: 22px;">
+            <i class="fa-solid fa-bookmark me-2 text-primary"></i> రీసెర్చ్ హిస్టరీ
+          </h4>
+          <button class="btn btn-outline-primary fw-bold px-4 py-2 telugu-title" style="font-size: 16px;" type="button" data-bs-toggle="collapse" data-bs-target="#historyCollapseBox" aria-expanded="false" aria-controls="historyCollapseBox" onclick="loadAiHistory()">
+            <i class="fa-solid fa-list-ul me-2"></i> హిస్టరీ
+          </button>
+        </div>
+
+        <div class="collapse mt-4" id="historyCollapseBox">
+          <div class="card card-body border bg-light rounded-4">
+            <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
+              <span class="text-muted small fw-bold telugu-body" style="font-size: 16px;">గతంలో చేసిన అన్ని రీసెర్చ్ విశ్లేషణలు ఇక్కడ లభిస్తాయి:</span>
+              <button onclick="loadAiHistory()" class="btn btn-sm btn-secondary fw-bold telugu-title">
+                <i class="fa-solid fa-rotate-right me-1"></i> రిఫ్రెష్
+              </button>
             </div>
-
-            <!-- 2. మాన్యువల్ OCR ట్రిగ్గర్ -->
-            <div class="tab-pane fade" id="ocrPanel" role="tabpanel">
-              <p class="text-muted">మీరు డౌన్‌లోడ్ చేసిన పుస్తకాల నుండి OCR రన్ చేయవలసిన ఫైల్‌ను ఎంచుకోండి:</p>
-              <div class="input-group mb-3">
-                <select id="downloadedFilesSelect" class="form-select"></select>
-                <button class="btn btn-success" type="button" onclick="triggerManualOCR()">OCR ప్రాసెస్ ప్రారంభించు</button>
-              </div>
-              <div id="ocrStatus" class="fw-bold mt-2"></div>
+            <div id="ai-history-container" class="d-flex flex-column gap-3" style="max-height: 550px; overflow-y: auto;">
+              <p class="text-center text-muted py-3 telugu-body">హిస్టరీ లోడ్ అవుతోంది...</p>
             </div>
+          </div>
+        </div>
+      </div>
 
-            <!-- 3. టెక్స్ట్ ఎడిట్ ప్యానెల్ -->
-            <div class="tab-pane fade" id="editPanel" role="tabpanel">
-              <p class="text-muted">సవరించాల్సిన పుస్తకాన్ని మరియు పేజీ నంబర్‌ను ఎంచుకోండి:</p>
-              <div class="row g-2 mb-3">
-                <div class="col-md-7">
-                  <select id="editFilesSelect" class="form-select"></select>
+    </div>
+
+    <!-- 🌟 ప్రత్యేక అడ్మిన్ / OCR & ఎడిట్ మోడల్ (పూర్తిగా తెలుగు ఫాంట్స్‌తో ఫార్మాట్ చేయబడింది) -->
+    <div class="modal fade" id="adminToolsModal" tabindex="-1" aria-labelledby="adminToolsModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+          <div class="modal-header bg-dark text-white rounded-top-4">
+            <h5 class="modal-title fw-bold telugu-title" id="adminToolsModalLabel" style="font-size: 22px;"><i class="fa-solid fa-gear me-2"></i> ప్రత్యేక OCR & టెక్స్ట్ ఎడిట్ నిర్వహణ ప్యానెల్</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body p-4 bg-light">
+            <ul class="nav nav-tabs mb-4" id="adminTab" role="tablist">
+              <li class="nav-item">
+                <a class="nav-link active fw-bold telugu-title" style="font-size: 17px;" id="ocr-tab" data-bs-toggle="tab" href="#ocrPanel" role="tab" onclick="loadDownloadedBooksForOCR('downloadedFilesSelect')">
+                  <i class="fa-solid fa-bolt me-1 text-success"></i> కొత్త పుస్తకానికి OCR చేయండి
+                </a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link fw-bold telugu-title" style="font-size: 17px;" id="edit-tab" data-bs-toggle="tab" href="#editPanel" role="tab" onclick="loadDownloadedBooksForOCR('editFilesSelect')">
+                  <i class="fa-solid fa-pen-to-square me-1 text-primary"></i> టెక్స్ట్ సరిదిద్దండి (Edit)
+                </a>
+              </li>
+            </ul>
+
+            <div class="tab-content" id="adminTabContent">
+              <!-- OCR ప్యానెల్ -->
+              <div class="tab-pane fade show active" id="ocrPanel" role="tabpanel">
+                <p class="text-muted mb-3 telugu-body" style="font-size: 17px;">మీరు డౌన్‌లోడ్ చేసిన పుస్తకాల నుండి OCR రన్ చేయవలసిన ఫైల్‌ను ఎంచుకోండి:</p>
+                <div class="input-group mb-3 shadow-sm">
+                  <select id="downloadedFilesSelect" class="form-select form-select-lg telugu-body">
+                    <option class="telugu-body" value="">-- పుస్తకాన్ని ఎంచుకోండి --</option>
+                  </select>
+                  <button class="btn btn-success px-4 fw-bold telugu-title" style="font-size: 17px;" type="button" onclick="triggerManualOCR()">
+                    OCR ప్రాసెస్ ప్రారంభించు
+                  </button>
                 </div>
-                <div class="col-md-3">
-                  <input type="number" id="editPageNumber" class="form-control" placeholder="పేజీ నంబర్ (ఉదా: 15)">
-                </div>
-                <div class="col-md-2">
-                  <button class="btn btn-primary w-100" onclick="fetchOCRText()">టెక్స్ట్ తీసుకురా</button>
-                </div>
+                <div id="ocrStatus" class="fw-bold mt-3 telugu-body" style="font-size: 16px;"></div>
               </div>
-              
-              <div id="editStatus" class="fw-bold mt-2 mb-2"></div>
-              
-              <div id="textAreaContainer" style="display: none;">
-                <textarea id="ocrTextArea" class="form-control mb-3" rows="12" style="font-size: 16px; line-height: 1.8;"></textarea>
-                <button class="btn btn-success" onclick="saveOCRText()"><i class="fa-solid fa-floppy-disk"></i> మార్పులను సేవ్ చేయండి</button>
+
+              <!-- ఎడిట్ ప్యానెల్ -->
+              <div class="tab-pane fade" id="editPanel" role="tabpanel">
+                <p class="text-muted mb-3 telugu-body" style="font-size: 17px;">సవరించాల్సిన పుస్తకాన్ని మరియు పేజీ నంబర్‌ను ఎంచుకోండి:</p>
+                <div class="row g-2 mb-3">
+                  <div class="col-md-7">
+                    <select id="editFilesSelect" class="form-select form-select-lg telugu-body">
+                      <option class="telugu-body" value="">-- పుస్తకాన్ని ఎంచుకోండి --</option>
+                    </select>
+                  </div>
+                  <div class="col-md-3">
+                    <input type="number" id="editPageNumber" class="form-control form-control-lg telugu-body" placeholder="పేజీ నంబర్ (ఉదా: 15)" />
+                  </div>
+                  <div class="col-md-2">
+                    <button class="btn btn-dark btn-lg w-100 fw-bold telugu-title" style="font-size: 17px;" onclick="fetchOCRText()">టెక్స్ట్ తెవ్వు</button>
+                  </div>
+                </div>
+
+                <div id="editStatus" class="fw-bold mt-2 mb-2 telugu-body" style="font-size: 16px;"></div>
+
+                <div id="textAreaContainer" style="display: none">
+                  <textarea id="ocrTextArea" class="form-control mb-3 shadow-sm telugu-body" rows="10" style="font-size: 18px; line-height: 1.8; border-radius: 10px;"></textarea>
+                  <button class="btn btn-success px-4 py-2 fw-bold telugu-title" style="font-size: 17px;" onclick="saveOCRText()">
+                    <i class="fa-solid fa-floppy-disk me-2"></i> మార్పులను సేవ్ చేయండి
+                  </button>
+                </div>
               </div>
             </div>
-
           </div>
         </div>
       </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script>
-      // డ్రాప్‌డౌన్స్ లోడ్ చేసి స్టేటస్ బ్యాడ్జ్ (✅/⏳) చూపించే ఫంక్షన్
+      window.addEventListener("DOMContentLoaded", () => {
+        loadAiHistory();
+        checkAdminAccess();
+      });
+
+      async function checkAdminAccess() {
+        try {
+          const res = await fetch("/api/current-user");
+          const data = await res.json();
+          if (data.logged_in && data.is_admin) {
+            document.getElementById("adminToolsBtnContainer").innerHTML = `
+              <button class="btn btn-warning fw-bold px-3 shadow-sm text-dark telugu-title" style="font-size: 16px;" data-bs-toggle="modal" data-bs-target="#adminToolsModal">
+                <i class="fa-solid fa-gears me-1"></i> టూల్స్
+              </button>
+            `;
+          }
+        } catch (e) {
+          console.error("Error checking admin status:", e);
+        }
+      }
+
+      function loadAiHistory() {
+        fetch("/api/ai-history")
+          .then((res) => res.json())
+          .then((data) => {
+            const container = document.getElementById("ai-history-container");
+            container.innerHTML = "";
+
+            if (data.error || !data.history || data.history.length === 0) {
+              container.innerHTML = '<p class="text-center text-muted py-4 telugu-body" style="font-size: 16px;">ఇంకా ఎలాంటి రీసెర్చ్ హిస్టరీ సేవ్ చేయబడలేదు.</p>';
+              return;
+            }
+
+            data.history.forEach((item) => {
+              const cleanSummary = item.ai_summary.replace(/`/g, "'").replace(/"/g, '&quot;');
+              const cleanQuery = item.query.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+              container.innerHTML += `
+                <div class="history-item">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 class="fw-bold text-dark mb-0 telugu-title" style="font-size: 19px;"><i class="fa-solid fa-circle-question text-primary me-2"></i> ${item.query}</h5>
+                        <span class="text-muted small"><i class="fa-solid fa-clock me-1"></i> ${item.created_at}</span>
+                    </div>
+                    <div class="p-3 bg-light rounded-3 border mb-3 ai-formatted-content">
+                        ${marked.parse(item.ai_summary)}
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button onclick="exportSingleTxt('${cleanQuery}', \`${cleanSummary}\`)" class="btn btn-success btn-sm fw-bold px-3 telugu-title" style="font-size: 15px;">
+                            <i class="fa-solid fa-file-arrow-down me-1"></i> TXT ఎక్స్‌పోర్ట్
+                        </button>
+                        <button onclick="exportSinglePdf('${cleanQuery}', \`${cleanSummary}\`)" class="btn btn-primary btn-sm fw-bold px-3 telugu-title" style="font-size: 15px;">
+                            <i class="fa-solid fa-print me-1"></i> ప్రింట్ / PDF
+                        </button>
+                        <button onclick="deleteHistoryItem(${item.id})" class="btn btn-outline-danger btn-sm fw-bold px-3 ms-auto telugu-title" style="font-size: 15px;">
+                            <i class="fa-solid fa-trash me-1"></i> తొలగించు
+                        </button>
+                    </div>
+                </div>
+              `;
+            });
+          })
+          .catch((err) => console.error("Error loading history:", err));
+      }
+
+      function exportSingleTxt(query, summaryText) {
+        const content = `తెలుగు డిజిటల్ లైబ్రరీ - AI రీసెర్చ్ విశ్లేషణ\n========================================\n\nప్రశ్న / అంశం: ${query}\n\nగూగుల్ AI సారాంశం:\n${summaryText}\n\nతేదీ: ${new Date().toLocaleString()}`;
+        const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `AI_Analysis_${query.slice(0, 15).replace(/\s+/g, "_")}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
+      function exportSinglePdf(query, summaryText) {
+        const printWindow = window.open("", "", "height=700,width=900");
+        printWindow.document.write(`
+          <html>
+          <head>
+              <title>AI రీసెర్చ్ నివేదిక - ${query}</title>
+              <style>
+                  body { font-family: 'Mandali', 'Segoe UI', Tahoma, sans-serif; padding: 40px; color: #111; line-height: 1.8; font-size: 18px; }
+                  h2 { color: #1e3a8a; border-bottom: 2px solid #1e3a8a; padding-bottom: 10px; margin-bottom: 20px; font-family: 'Suranna', serif; }
+                  .box { background: #f9fafb; padding: 25px; border-radius: 8px; border: 1px solid #e5e7eb; margin-top: 20px; white-space: pre-line; }
+                  .footer { margin-top: 50px; font-size: 14px; color: #666; text-align: center; border-top: 1px solid #ddd; padding-top: 15px; }
+              </style>
+          </head>
+          <body>
+              <h2>తెలుగు డిజిటల్ లైబ్రరీ - AI రీసెర్చ్ నివేదిక</h2>
+              <p><strong>ప్రశ్న / అంశం:</strong> ${query}</p>
+              <div class="box"><strong>విశ్లేషణ సారాంశం:</strong><br><br>${summaryText}</div>
+              <div class="footer">డాక్టర్ రాంభట్ల పార్వతీశ్వర శర్మగారి పరిశోధనా వేదిక ద్వారా రూపొందించబడింది.</div>
+          </body>
+          </html>
+        `);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+          printWindow.print();
+          printWindow.close();
+        }, 600);
+      }
+
+      function deleteHistoryItem(id) {
+        if (confirm("ఈ రీసెర్చ్ హిస్టరీని తొలగించాలనుకుంటున్నారా?")) {
+          fetch(`/api/ai-history/${id}`, { method: "DELETE" })
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.status === "success") {
+                loadAiHistory();
+              } else {
+                alert("తొలగించడం సాధ్యపడలేదు.");
+              }
+            });
+        }
+      }
+
       async function loadDownloadedBooksForOCR(selectId) {
         const select = document.getElementById(selectId);
-        select.innerHTML = "<option value=''>ఫైళ్లను లోడ్ చేస్తోంది...</option>";
+        select.innerHTML = "<option value='' class='telugu-body'>ఫైళ్లను లోడ్ చేస్తోంది...</option>";
         try {
           const res = await fetch("/list-downloaded-books");
           const data = await res.json();
           if (data.files && data.files.length > 0) {
-            select.innerHTML = "<option value=''>-- పుస్తకాన్ని ఎంచుకోండి --</option>";
+            select.innerHTML = "<option value='' class='telugu-body'>-- పుస్తకాన్ని ఎంచుకోండి --</option>";
             data.files.forEach((f) => {
               let opt = document.createElement("option");
-              let filename = (typeof f === 'object') ? f.filename : f;
-              let isOcrDone = (typeof f === 'object') ? f.ocr_done : false;
+              let filename = typeof f === "object" ? f.filename : f;
+              let isOcrDone = typeof f === "object" ? f.ocr_done : false;
               opt.value = filename;
-              
+              opt.className = "telugu-body";
               let statusIcon = isOcrDone ? "✅ [పూర్తయింది] - " : "⏳ [చేయాలి] - ";
               opt.style.color = isOcrDone ? "#28a745" : "#dc3545";
-              
               opt.textContent = statusIcon + filename;
               select.appendChild(opt);
             });
           } else {
-            select.innerHTML = "<option value=''>PDF ఫైల్స్ ఏవీ కనుగొనబడలేదు.</option>";
+            select.innerHTML = "<option value='' class='telugu-body'>PDF ఫైల్స్ ఏవీ కనుగొనబడలేదు.</option>";
           }
         } catch (err) {
-          select.innerHTML = "<option value=''>లోపం ఏర్పడింది.</option>";
+          select.innerHTML = "<option value='' class='telugu-body'>లోపం ఏర్పడింది.</option>";
         }
       }
 
-      // OCR రన్ చేసే ఫంక్షన్
       async function triggerManualOCR() {
         const filename = document.getElementById("downloadedFilesSelect").value;
         const statusDiv = document.getElementById("ocrStatus");
-        if (!filename) { alert("దయచేసి ఒక ఫైల్‌ని ఎంచుకోండి."); return; }
-        statusDiv.innerHTML = "<span class='text-info'>OCR ప్రాసెసింగ్ జరుగుతోంది, దయచేసి వేచి ఉండండి...</span>";
+        if (!filename) {
+          alert("దయచేసి ఒక ఫైల్‌ని ఎంచుకోండి.");
+          return;
+        }
+        statusDiv.innerHTML = "<span class='text-info telugu-body'>OCR ప్రాసెసింగ్ జరుగుతోంది, దయచేసి వేచి ఉండండి...</span>";
         try {
           const response = await fetch(`/run-special-ocr?filename=${encodeURIComponent(filename)}`, { method: "POST" });
           const data = await response.json();
           if (data.status === "success") {
-            statusDiv.innerHTML = `<span class='text-success'>${data.message}</span>`;
-            loadDownloadedBooksForOCR('downloadedFilesSelect'); 
+            statusDiv.innerHTML = `<span class='text-success telugu-body'>${data.message}</span>`;
+            loadDownloadedBooksForOCR("downloadedFilesSelect");
           } else {
-            statusDiv.innerHTML = `<span class='text-danger'>ఎర్రర్: ${data.message}</span>`;
+            statusDiv.innerHTML = `<span class='text-danger telugu-body'>ఎర్రర్: ${data.message}</span>`;
           }
-        } catch (error) { statusDiv.innerHTML = `<span class='text-danger'>లోపం ఏర్పడింది.</span>`; }
+        } catch (error) {
+          statusDiv.innerHTML = `<span class='text-danger telugu-body'>లోపం ఏర్పడింది.</span>`;
+        }
       }
 
-      // టెక్స్ట్ తీసుకురావడం (Fetch Text)
       async function fetchOCRText() {
-          const filename = document.getElementById("editFilesSelect").value;
-          const pageNum = document.getElementById("editPageNumber").value;
-          const statusDiv = document.getElementById("editStatus");
-          const container = document.getElementById("textAreaContainer");
-          
-          if(!filename || !pageNum) { alert("పుస్తకం మరియు పేజీ నంబర్ ఎంచుకోండి."); return; }
-          statusDiv.innerHTML = "<span class='text-info'>టెక్స్ట్ తెస్తోంది...</span>";
-          container.style.display = "none";
-          
-          try {
-              const res = await fetch(`/get-ocr-text?filename=${encodeURIComponent(filename)}&page_number=${pageNum}`);
-              const data = await res.json();
-              if (data.status === 'success') {
-                  document.getElementById("ocrTextArea").value = data.text;
-                  container.style.display = "block";
-                  statusDiv.innerHTML = "";
-              } else {
-                  statusDiv.innerHTML = `<span class='text-danger'>${data.message}</span>`;
-              }
-          } catch(e) { statusDiv.innerHTML = `<span class='text-danger'>లోపం ఏర్పడింది.</span>`; }
+        const filename = document.getElementById("editFilesSelect").value;
+        const pageNum = document.getElementById("editPageNumber").value;
+        const statusDiv = document.getElementById("editStatus");
+        const container = document.getElementById("textAreaContainer");
+
+        if (!filename || !pageNum) {
+          alert("పుస్తకం మరియు పేజీ నంబర్ ఎంచుకోండి.");
+          return;
+        }
+        statusDiv.innerHTML = "<span class='text-info telugu-body'>టెక్స్ట్ తెస్తోంది...</span>";
+        container.style.display = "none";
+
+        try {
+          const res = await fetch(`/get-ocr-text?filename=${encodeURIComponent(filename)}&page_number=${pageNum}`);
+          const data = await res.json();
+          if (data.status === "success") {
+            document.getElementById("ocrTextArea").value = data.text;
+            container.style.display = "block";
+            statusDiv.innerHTML = "";
+          } else {
+            statusDiv.innerHTML = `<span class='text-danger telugu-body'>${data.message}</span>`;
+          }
+        } catch (e) {
+          statusDiv.innerHTML = `<span class='text-danger telugu-body'>లోపం ఏర్పడింది.</span>`;
+        }
       }
 
-      // టెక్స్ట్ సేవ్ చేయడం (Save Text)
       async function saveOCRText() {
-          const filename = document.getElementById("editFilesSelect").value;
-          const pageNum = document.getElementById("editPageNumber").value;
-          const newText = document.getElementById("ocrTextArea").value;
-          const statusDiv = document.getElementById("editStatus");
-          
-          let formData = new FormData();
-          formData.append("filename", filename);
-          formData.append("page_number", pageNum);
-          formData.append("new_text", newText);
+        const filename = document.getElementById("editFilesSelect").value;
+        const pageNum = document.getElementById("editPageNumber").value;
+        const newText = document.getElementById("ocrTextArea").value;
+        const statusDiv = document.getElementById("editStatus");
 
-          try {
-              statusDiv.innerHTML = "<span class='text-info'>సేవ్ అవుతోంది...</span>";
-              const res = await fetch("/update-ocr-text", { method: "POST", body: formData });
-              const data = await res.json();
-              if (data.status === 'success') {
-                  statusDiv.innerHTML = `<span class='text-success'>✅ ${data.message}</span>`;
-              } else {
-                  statusDiv.innerHTML = `<span class='text-danger'>${data.message}</span>`;
-              }
-          } catch(e) { statusDiv.innerHTML = `<span class='text-danger'>సేవ్ చేయడంలో లోపం.</span>`; }
+        let formData = new FormData();
+        formData.append("filename", filename);
+        formData.append("page_number", pageNum);
+        formData.append("new_text", newText);
+
+        try {
+          statusDiv.innerHTML = "<span class='text-info telugu-body'>సేవ్ అవుతోంది...</span>";
+          const res = await fetch("/update-ocr-text", { method: "POST", body: formData });
+          const data = await res.json();
+          if (data.status === "success") {
+            statusDiv.innerHTML = `<span class='text-success telugu-body'>✅ ${data.message}</span>`;
+          } else {
+            statusDiv.innerHTML = `<span class='text-danger telugu-body'>${data.message}</span>`;
+          }
+        } catch (e) {
+          statusDiv.innerHTML = `<span class='text-danger telugu-body'>సేవ్ చేయడంలో లోపం.</span>`;
+        }
       }
 
-      // కాన్సెప్ట్-బేస్డ్ సెర్చ్ & AI సారాంశం
       async function runAdvancedSearch() {
         const query = document.getElementById("advancedQuery").value.trim();
         const resultsDiv = document.getElementById("advancedResults");
@@ -200,7 +474,7 @@
         const summaryText = document.getElementById("aiSummaryText");
 
         if (!query) return alert("పదాన్ని లేదా ప్రశ్నను టైప్ చేయండి.");
-        resultsDiv.innerHTML = "<p class='text-muted p-3'>శోధిస్తోంది...</p>";
+        resultsDiv.innerHTML = "<p class='text-muted p-3 telugu-body'>శోధిస్తోంది...</p>";
         summaryCard.style.display = "none";
 
         try {
@@ -209,26 +483,29 @@
           if (data.ai_summary) {
             summaryText.innerHTML = marked.parse(data.ai_summary);
             summaryCard.style.display = "block";
+            loadAiHistory();
           }
           if (data.results && data.results.length > 0) {
             let html = "";
             data.results.forEach((item) => {
-              let imgHtml = item.page_image ? `<div class="mt-2 border text-center"><img src="data:image/png;base64,${item.page_image}" class="img-fluid" style="max-height: 380px;"></div>` : "";
-              // కొత్త కోడ్ (Render లో పర్ఫెక్ట్‌గా ఓపెన్ అవ్వడానికి):
+              let imgHtml = item.page_image ? `<div class="mt-3 border text-center rounded-3 overflow-hidden shadow-sm"><img src="data:image/png;base64,${item.page_image}" class="img-fluid" style="max-height: 380px;"></div>` : "";
               let pdfFileUrl = `${window.location.origin}/downloads/${encodeURIComponent(item.filename)}`;
-              let pdfBtnHtml = item.filename ? `<a href="${pdfFileUrl}#page=${item.page_number}" target="_blank" class="btn btn-sm btn-outline-primary mt-3">పూర్తి PDF చూడండి (పేజీ ${item.page_number})</a>` : "";
+              let pdfBtnHtml = item.filename ? `<a href="${pdfFileUrl}#page=${item.page_number}" target="_blank" class="btn btn-sm btn-outline-primary mt-3 fw-bold telugu-title"><i class="fa-solid fa-file-pdf me-1"></i> పూర్తి PDF చూడండి (పేజీ ${item.page_number})</a>` : "";
 
-
-              html += `<div class="col-md-6 mb-4"><div class="card p-3 shadow-sm h-100">
-                          <h6 class="text-primary fw-bold">📚 ${item.book_title}</h6>
-                          <span class="badge bg-secondary mb-2 align-self-start">పేజీ నంబర్: ${item.page_number}</span>
-                          <p class="text-muted small"><strong>సందర్భం:</strong> ${item.snippet}</p>
+              html += `<div class="col-md-6 mb-4"><div class="card p-3 shadow-sm h-100 rounded-4 border">
+                          <h6 class="text-primary fw-bold mb-2 telugu-title" style="font-size: 18px;">📚 ${item.book_title}</h6>
+                          <span class="badge bg-secondary mb-2 align-self-start telugu-title">పేజీ నంబర్: ${item.page_number}</span>
+                          <p class="text-muted small telugu-body" style="font-size: 16px;"><strong>సందర్భం:</strong> ${item.snippet}</p>
                           ${imgHtml} ${pdfBtnHtml}
                       </div></div>`;
             });
             resultsDiv.innerHTML = html;
-          } else { resultsDiv.innerHTML = `<p class='text-danger p-3'>ఫలితాలు లేవు.</p>`; }
-        } catch (error) { resultsDiv.innerHTML = `<p class='text-danger p-3'>లోపం ఏర్పడింది.</p>`; }
+          } else {
+            resultsDiv.innerHTML = `<p class='text-danger p-3 telugu-body'>ఫలితాలు లేవు.</p>`;
+          }
+        } catch (error) {
+          resultsDiv.innerHTML = `<p class='text-danger p-3 telugu-body'>లోపం ఏర్పడింది.</p>`;
+        }
       }
     </script>
   </body>

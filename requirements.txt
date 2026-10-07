@@ -16,3 +16,4 @@ beautifulsoup4
 pydantic
 pypdf
 gdown
+pytz

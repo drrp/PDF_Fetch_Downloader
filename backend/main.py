@@ -1,4 +1,8 @@
-﻿import os
+﻿import warnings
+warnings.filterwarnings("ignore", message=".*httpx module is deprecated.*")
+warnings.filterwarnings("ignore", module="authlib")
+
+import os
 import requests
 import re
 import uuid
@@ -8,9 +12,7 @@ import json
 import base64
 import fitz  # PyMuPDF (PDF ని పేజీలుగా మార్చడానికి)
 import time
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
+import pytz
 from google import genai
 from authlib.integrations.starlette_client import OAuth
 from google.cloud import vision  # Google Cloud Vision API కోసం
@@ -28,7 +30,7 @@ from backend.ttd import TTDScraper
 from starlette.middleware.sessions import SessionMiddleware
 
 # 1. Environment Variables లోడ్ చేయడం
-load_dotenv(override=True) # 🌟 పాత కీని క్లియర్ చేసి కొత్త కీని ఫోర్స్ చేస్తుంది
+load_dotenv(override=True)
 
 # డేటాబేస్ కనెక్షన్ ఫంక్షన్
 def get_db_connection():
@@ -37,6 +39,18 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
+    
+    # AI Research History Table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS ai_research_history (
+            id SERIAL PRIMARY KEY,
+            email TEXT,
+            query TEXT,
+            ai_summary TEXT,
+            sources_json TEXT,
+            created_at TEXT
+        )
+    ''')
     
     # Users Table
     cursor.execute('''
@@ -83,7 +97,6 @@ def init_db():
         )
     ''');
     
-    # ఒకవేళ పాత టేబుల్ ఉండి ఈ కాలమ్స్ లేకపోతే ఆటోమేటిక్‌గా యాడ్ చేయడానికి:
     cursor.execute('ALTER TABLE pdf_text_index ADD COLUMN IF NOT EXISTS filename TEXT;')
     cursor.execute('ALTER TABLE pdf_text_index ADD COLUMN IF NOT EXISTS word_boxes JSONB;')
     
@@ -117,6 +130,9 @@ def log_user_activity(request: Request, action_type: str, details: str, status: 
     user = request.session.get('user')
     if user:
         try:
+            IST = pytz.timezone('Asia/Kolkata')
+            current_time = datetime.now(IST).strftime("%d-%m-%Y %I:%M %p")
+            
             conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute('''
@@ -124,7 +140,7 @@ def log_user_activity(request: Request, action_type: str, details: str, status: 
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
             ''', (
                 user.get("email"), user.get("name"), user.get("picture"),
-                action_type, details, datetime.now().strftime("%d-%m-%Y %I:%M %p"), status
+                action_type, details, current_time, status
             ))
             cursor.execute('''
                 UPDATE users SET is_active = TRUE WHERE email = %s
@@ -158,6 +174,8 @@ async def auth(request: Request):
             
             conn = get_db_connection()
             cursor = conn.cursor()
+            IST = pytz.timezone('Asia/Kolkata')
+            login_time = datetime.now(IST).strftime("%d-%m-%Y %I:%M %p")
             cursor.execute('''
                 INSERT INTO users (email, name, picture, last_login)
                 VALUES (%s, %s, %s, %s)
@@ -165,7 +183,7 @@ async def auth(request: Request):
                 DO UPDATE SET name = EXCLUDED.name, picture = EXCLUDED.picture, last_login = EXCLUDED.last_login
             ''', (
                 user_dict.get('email'), user_dict.get('name'),
-                user_dict.get('picture'), datetime.now().strftime("%d-%m-%Y %I:%M %p")
+                user_dict.get('picture'), login_time
             ))
             conn.commit()
             conn.close()
@@ -221,45 +239,6 @@ def user_profile(request: Request):
     profile_page = os.path.join(FRONTEND_DIR, "profile.html")
     return FileResponse(profile_page) if os.path.exists(profile_page) else {"error": "profile.html not found"}
 
-
-# గూగుల్ డ్రైవ్ ఆథెంటికేషన్ & అప్‌లోడ్ ఫంక్షన్
-SCOPES = ['https://www.googleapis.com/auth/drive.file']
-SERVICE_ACCOUNT_FILE = 'credentials.json'
-
-def get_drive_service():
-    creds = service_account.Credentials.from_service_account_file(
-        SERVICE_ACCOUNT_FILE, scopes=SCOPES)
-    return build('drive', 'v3', credentials=creds)
-
-def upload_pdf_to_drive(file_path, filename):
-    try:
-        service = get_drive_service()
-        
-        # మీ షేర్డ్ డ్రైవ్ ఐడీని ఇక్కడ ఇవ్వండి
-        shared_drive_id = "0APbexQ8RCU0WUk9PVA" 
-        
-        file_metadata = {
-            'name': filename,
-            'parents': [shared_drive_id] # షేర్డ్ డ్రైవ్ ఐడీ పేరెంట్ అవుతుంది
-        }
-        
-        media = MediaFileUpload(file_path, mimetype='application/pdf')
-        
-        # supportsAllDrives=True అనేది షేర్డ్ డ్రైవ్‌కి అప్‌లోడ్ చేయడానికి అత్యంత ముఖ్యం
-        file = service.files().create(
-            body=file_metadata, 
-            media_body=media, 
-            supportsAllDrives=True,
-            fields='id, webContentLink, webViewLink'
-        ).execute()
-        
-        return file.get('webViewLink')
-    except Exception as e:
-        print(f"Drive Upload Error: {e}")
-        return None
-
-
-# ప్రత్యేక OCR పేజీని ఓపెన్ చేయడానికి రౌట్
 @app.get('/ocr-hub')
 def ocr_hub_page(request: Request):
     user = request.session.get('user')
@@ -291,53 +270,33 @@ def get_user_activity(request: Request):
             "downloads": sum(1 for a in activities if a['action'] == 'Download' and a['status'] == 'Success')
         }
     }
-    
-import os
-from fastapi import APIRouter, Request
 
 @app.get("/api/downloaded-files")
 def get_downloaded_files():
-    """డౌన్‌లోడ్ అయిన పుస్తకాలను మరియు వాటి OCR స్టేటస్‌ను పంపే రౌట్"""
     files = []
     if os.path.exists(DOWNLOAD_DIR):
         file_names = [f for f in os.listdir(DOWNLOAD_DIR) if f.endswith('.pdf')]
-        
         conn = get_db_connection()
         cursor = conn.cursor()
-        
         for filename in file_names:
-            # 🌟 డేటాబేస్‌లో ఈ ఫైల్‌‌కు OCR పూర్తయిందా లేదా చెక్ చేయడం
             cursor.execute("SELECT 1 FROM pdf_text_index WHERE filename = %s LIMIT 1", (filename,))
             is_done = cursor.fetchone() is not None
-            
-            files.append({
-                "filename": filename,
-                "ocr_done": is_done
-            })
+            files.append({"filename": filename, "ocr_done": is_done})
         conn.close()
-        
     return {"files": files}
-    
+
 @app.post("/update-ocr-text")
-def update_ocr_text(
-    filename: str = Form(...), 
-    page_number: int = Form(...), 
-    new_text: str = Form(...)
-):
-    """డేటాబేస్‌లోని OCR టెక్స్ట్‌ను మాన్యువల్‌గా సరిదిద్దడానికి"""
+def update_ocr_text(filename: str = Form(...), page_number: int = Form(...), new_text: str = Form(...)):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
         cursor.execute('''
             UPDATE pdf_text_index 
             SET extracted_text = %s 
             WHERE filename = %s AND page_number = %s
         ''', (new_text, filename, page_number))
-        
         conn.commit()
         conn.close()
-        
         return {"status": "success", "message": f"పేజీ {page_number} టెక్స్ట్ విజయవంతంగా అప్‌డేట్ చేయబడింది!"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -368,7 +327,6 @@ def logout(request: Request):
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
-# 🌟 ఫ్రంట్-ఎండ్ ఫోల్డర్‌లోనే ఇండెక్స్ ఫైల్ ఉండేలా సెట్ చేయడం
 FRONTEND_INDEX = os.path.join(FRONTEND_DIR, "index.html")
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
@@ -383,11 +341,8 @@ def read_root(request: Request):
     if not user:
         login_page = os.path.join(FRONTEND_DIR, "login.html")
         return FileResponse(login_page) if os.path.exists(login_page) else RedirectResponse(url='/login/google')
-    
-    # 🌟 రూట్ లో కాకుండా 'frontend' ఫోల్డర్ లోని index.html ని రిటర్న్ చేయడం
     if os.path.exists(FRONTEND_INDEX):
         return FileResponse(FRONTEND_INDEX)
-    
     return {"error": "index.html not found in frontend folder"}
 
 # స్క్రాపర్స్
@@ -426,77 +381,53 @@ def download_book(request: Request, book_page_url: str = Query(...), title: str 
     filepath = os.path.join(DOWNLOAD_DIR, filename)
     
     try:
-        if source == "Internet Archive": ia_scraper.download(book_page_url, title, filepath)
+        if source == "Internet Archive": 
+            ia_scraper.download(book_page_url, title, filepath)
         elif source == "Manasu Foundation": 
             manasu_scraper.consult_download(book_page_url, title, filepath) if hasattr(manasu_scraper, 'consult_download') else manasu_scraper.download(book_page_url, title, filepath)
-        elif source == "TTD Ebooks": ttd_scraper.download(book_page_url, title, filepath)
-        else: svk_scraper.download(book_page_url, title, filepath)
+        elif source == "TTD Ebooks": 
+            ttd_scraper.download(book_page_url, title, filepath)
+        else: 
+            svk_scraper.download(book_page_url, title, filepath)
             
-        # 🌟 ఇక్కడ డౌన్‌లోడ్ అయిన వెంటనే గూగుల్ డ్రైవ్‌కి పంపడం
-        drive_link = None
-        if os.path.exists(filepath):
-            drive_link = upload_pdf_to_drive(filepath, filename)
-            print(f"Google Drive Permanent Link: {drive_link}")
-
-        log_user_activity(request, "Download", f"డౌన్‌లోడ్ & డ్రైవ్ సేవ్: '{title}' ({source})", "Success")
+        log_user_activity(request, "Download", f"డౌన్‌లోడ్: '{title}' ({source})", "Success")
         
         return {
             "status": "success", 
-            "message": f"Saved and uploaded to Drive!", 
-            "file_url": f"/downloads/{filename}",
-            "drive_link": drive_link
+            "message": "పుస్తకం విజయవంతంగా డౌన్‌లోడ్ చేయబడింది!", 
+            "file_url": f"/downloads/{filename}"
         }
     except Exception as e:
         log_user_activity(request, "Download", f"విఫలం: '{title}' | ఎర్రర్: {str(e)}", "Failed")
-        return {"status": "error", "message": str(e)}    
+        return {"status": "error", "message": str(e)}
 
 @app.post("/reset-app")
 def reset_application():
     return {"status": "success", "message": "App reset successfully, downloads preserved."}
 
-
-# ==========================================
-# 🌟 ప్రత్యేక OCR & హైలైటింగ్ ప్యానెల్ API లు
-# ==========================================
-
 @app.get("/list-downloaded-books")
 def list_downloaded_books(request: Request):
-    """డౌన్‌లోడ్ చేసిన PDFల జాబితాను ప్యానెల్ కోసం చూపించడం"""
     user = request.session.get('user')
     if not user: return {"error": "Unauthorized"}
-    
     files = []
-    print(f"Checking download directory: {DOWNLOAD_DIR}") # టెర్మినల్‌లో ఫోల్డర్ పాత్ ప్రింట్ అవుతుంది
-    
     if os.path.exists(DOWNLOAD_DIR):
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
-            
             for f in os.listdir(DOWNLOAD_DIR):
                 if f.endswith('.pdf'):
-                    # డేటాబేస్‌లో ఈ ఫైల్‌కి OCR పూర్తయిందో లేదో చెక్ చేయడం
                     cursor.execute("SELECT 1 FROM pdf_text_index WHERE filename = %s LIMIT 1", (f,))
                     is_done = cursor.fetchone() is not None
-                    
-                    files.append({
-                        "filename": f,
-                        "ocr_done": is_done
-                    })
+                    files.append({"filename": f, "ocr_done": is_done})
             conn.close()
         except Exception as e:
-            print(f"Database error in list-downloaded-books: {e}")
             for f in os.listdir(DOWNLOAD_DIR):
                 if f.endswith('.pdf'):
                     files.append({"filename": f, "ocr_done": False})
-    else:
-        print(f"Warning: Download directory does not exist at {DOWNLOAD_DIR}")
-
     return {"files": files}
 
 @app.post("/run-special-ocr")
 def run_special_ocr(request: Request, filename: str = Query(...)):
-    """యూజర్ కోరిన నిర్దిష్ట పుస్తకానికి మాత్రమే మాన్యువల్‌గా OCR మరియు Bounding Boxes ఇండెక్స్ చేయడం"""
     user = request.session.get('user')
     if not user: return {"error": "Unauthorized"}
     
@@ -504,6 +435,7 @@ def run_special_ocr(request: Request, filename: str = Query(...)):
     if not os.path.exists(filepath):
         return {"status": "error", "message": "ఫైల్ కనుగొనబడలేదు."}
         
+    doc = None
     try:
         client = vision.ImageAnnotatorClient()
         doc = fitz.open(filepath)
@@ -511,80 +443,70 @@ def run_special_ocr(request: Request, filename: str = Query(...)):
         cursor = conn.cursor()
         
         book_title = filename.rsplit('_', 1)[0]
-        
-        # పాత రికార్డ్స్ ఉంటే క్లియర్ చేయడం
         cursor.execute("DELETE FROM pdf_text_index WHERE filename = %s", (filename,))
-        
+        image_context = vision.ImageContext(language_hints=["te", "en"])
+
         for page_num in range(len(doc)):
-            print(f"Processing page {page_num + 1} of {len(doc)}...") # 🌟 ప్రోగ్రెస్ చూడటానికి
             page = doc[page_num]
-            pix = page.get_pixmap(dpi=150)
+            pix = page.get_pixmap(dpi=300)
             image_bytes = pix.tobytes("png")            
             image = vision.Image(content=image_bytes)
-            response = client.document_text_detection(image=image)
             
+            response = client.document_text_detection(image=image, image_context=image_context)
+            if response.error.message:
+                continue
+
             page_text = response.full_text_annotation.text if response.full_text_annotation else ""
-            
-            # పదాల గుర్తింపు మరియు వాటి కోఆర్డినేట్స్ (Bounding Boxes) కలెక్ట్ చేయడం
             word_boxes = []
+            
             if response.full_text_annotation:
                 for page_obj in response.full_text_annotation.pages:
                     for block in page_obj.blocks:
                         for paragraph in block.paragraphs:
                             for word in paragraph.words:
                                 word_str = "".join([symbol.text for symbol in word.symbols])
-                                vertices = word.bounding_box.vertices
-                                box = {
-                                    "word": word_str,
-                                    "x0": vertices[0].x, "y0": vertices[0].y,
-                                    "x2": vertices[2].x, "y2": vertices[2].y
-                                }
-                                word_boxes.append(box)
+                                norm_vertices = word.bounding_box.normalized_vertices
+                                if len(norm_vertices) >= 4:
+                                    box = {
+                                        "word": word_str, "x0": norm_vertices[0].x, "y0": norm_vertices[0].y,
+                                        "x2": norm_vertices[2].x, "y2": norm_vertices[2].y, "confidence": round(word.confidence, 2)
+                                    }
+                                    word_boxes.append(box)
             
             if page_text:
                 cursor.execute('''
                     INSERT INTO pdf_text_index (book_title, filename, page_number, extracted_text, word_boxes)
                     VALUES (%s, %s, %s, %s, %s)
-                ''', (book_title, filename, page_num + 1, page_text, json.dumps(word_boxes)))
+                ''', (book_title, filename, page_num + 1, page_text, json.dumps(word_boxes, ensure_ascii=False)))
                 
         conn.commit()
         conn.close()
+        return {"status": "success", "message": f"'{book_title}' పుస్తకానికి OCR విజయవంతంగా పూర్తి చేయబడింది!"}
 
-        # 🌟 ఇక్కడ గూగుల్ డ్రైవ్‌కి అప్‌లోడ్ చేసి పర్మినెంట్ లింక్ పొందవచ్చు
-        drive_link = upload_pdf_to_drive(filepath, filename)
-        print(f"Google Drive Permanent Link: {drive_link}")
-
-        return {
-            "status": "success", 
-            "message": f"'{book_title}' పుస్తకానికి OCR పూర్తి అయింది మరియు డ్రైవ్‌కి భద్రపరచబడింది!",
-            "drive_link": drive_link
-        }
-        
     except Exception as e:
         return {"status": "error", "message": str(e)}
-    
-from fastapi import Form
-
+    finally:
+        if doc is not None:
+            try: doc.close()
+            except: pass
+        
 @app.get("/get-ocr-text")
 def get_ocr_text(filename: str, page_number: int):
-    """డేటాబేస్ నుండి నిర్దిష్ట పేజీ యొక్క OCR టెక్స్ట్ తీసుకురావడానికి"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT extracted_text FROM pdf_text_index WHERE filename = %s AND page_number = %s", (filename, page_number))
         result = cursor.fetchone()
         conn.close()
-        
         if result:
             return {"status": "success", "text": result[0]}
         else:
-            return {"status": "error", "message": "ఈ పేజీకి సంబంధించిన OCR డేటా కనుగొనబడలేదు. ముందుగా OCR రన్ చేశారో లేదో చెక్ చేయండి."}
+            return {"status": "error", "message": "ఈ పేజీకి సంబంధించిన OCR డేటా కనుగొనబడలేదు."}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 @app.post("/update-ocr-text")
 def update_ocr_text(filename: str = Form(...), page_number: int = Form(...), new_text: str = Form(...)):
-    """ఎడిట్ చేసిన కొత్త టెక్స్ట్‌ను డేటాబేస్‌లో అప్‌డేట్ చేయడానికి"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -602,18 +524,16 @@ def update_ocr_text(filename: str = Form(...), page_number: int = Form(...), new
 def generate_ai_summary(query, snippets_list):
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        return "⚠️ హెచ్చరిక: `.env` ఫైల్‌లో 'GEMINI_API_KEY' లభించలేదు. API కీ ని అమర్చండి."
+        return "⚠️ హెచ్చరిక: `.env` ఫైల్‌లో 'GEMINI_API_KEY' లభించలేదు."
 
     if not snippets_list:
         return "మీరు అడిగిన ప్రశ్నకు సంబంధించిన సమాచారం ప్రస్తుత గ్రంథాలలో లభించలేదు."
 
     try:
         client = genai.Client(api_key=api_key)
-        
         combined_text = "\n".join([f"- గ్రంథం: {s['book_title']} (పేజీ {s['page_number']}): {s['snippet']}" for s in snippets_list])
         
-        # 🌟 ప్రాంప్ట్: కేవలం పదం గురించి కాకుండా, అడిగిన ప్రశ్నకు సమాధానం ఇచ్చేలా మార్పు
-        prompt = f"""కింద ఇవ్వబడిన గ్రంథాలలోని సమాచారం (Snippets) ఆధారంగా, యూజర్ అడిగిన ఈ ప్రశ్నకు లేదా అంశానికి ('{query}') స్పష్టమైన, విశ్లేషణాత్మకమైన సమాధానాన్ని అచ్చతెలుగులో ఇవ్వండి. 
+        prompt = f"""కింద ఇవ్వబడిన గ్రంథాలలోని సమాచారం ఆధారంగా, యూజర్ అడిగిన ఈ ప్రశ్నకు లేదా అంశానికి ('{query}') స్పష్టమైన, విశ్లేషణాత్మకమైన సమాధానాన్ని అచ్చతెలుగులో ఇవ్వండి. 
         
         యూజర్ ప్రశ్న/అంశం: {query}
         
@@ -621,30 +541,19 @@ def generate_ai_summary(query, snippets_list):
 
         ఈ క్రింది పద్ధతిలో విశ్లేషణ ఇవ్వండి:
         1. **సమాధానం/సారాంశం:** (ప్రశ్నకు నేరుగా సమాధానం)
-        2. **గ్రంథాల ఆధారాలు:** (ఏ గ్రంథంలో, ఏ పేజీలో ఈ వివరాలు దొరికాయి మరియు అందులోని ప్రయోగాలు)
+        2. **గ్రంథాల ఆధారాలు:** (ఏ గ్రంథంలో, ఏ పేజీలో ఈ వివరాలు దొరికాయి)
         3. **వివరణ:** (మరింత లోతైన విశ్లేషణ లేదా విశేషాలు)
 
         గ్రంథాల సమాచారం (Snippets):
         {combined_text}"""
 
-        # గూగుల్ సూచించిన వేగవంతమైన మోడల్
-        models_to_try = ['gemini-3.8-flash']
+        chat = client.chats.create(model="gemini-3.8-flash")
+        response = chat.send_message(prompt)
         
-        for model_name in models_to_try:
-            for attempt in range(2):
-                try:
-                    response = client.models.generate_content(
-                        model=model_name,
-                        contents=prompt,
-                    )
-                    if response and response.text:
-                        return response.text
-                except Exception as sub_e:
-                    print(f"Gemini failed: model={model_name}, attempt={attempt+1}, error={str(sub_e)}")
-                    import time
-                    time.sleep(1.5)
+        if response and response.text:
+            return response.text
                 
-        return "ప్రస్తుతం గూగుల్ AI సేవలు అందుబాటులో లేవు. దయచేసి నెట్‌వర్క్ లేదా API కీ ని సరిచూసుకోండి."
+        return "ప్రస్తుతం గూగుల్ AI సేవలు అందుబాటులో లేవు."
 
     except Exception as e:
         print("Gemini AI Error Exception:", str(e))
@@ -652,7 +561,7 @@ def generate_ai_summary(query, snippets_list):
 
 @app.get("/search-pdf-highlight")
 def search_pdf_highlight(request: Request, query: str = Query(...)):
-    """ఏకైక పరిమితులు (Limits) లేకుండా అన్ని OCR పుస్తకాల నుండి సమగ్ర శోధన చేయడం"""
+    """అన్ని పుస్తకాల నుండి ఎటువంటి పరిమితులు లేకుండా పూర్తి OCR డేటాను సేకరించి AI విశ్లేషణ చేయడం"""
     user = request.session.get('user')
     if not user: return {"error": "Unauthorized"}
     
@@ -662,19 +571,19 @@ def search_pdf_highlight(request: Request, query: str = Query(...)):
     
     matches = []
     
-    # ప్రశ్నలోని ముఖ్యమైన పదాలను వేరు చేయడం
-    stop_words = ["గ్రంథంలో", "గ్రంథాలలో", "మాత్రమే", "ఉన్న", "ఇవ్వు", "అంటే", "ఏమిటి", "గురించి", "రాయండి", "తెలుపుము", "రూపాలను", "రూపాలు", "ఒకసారి", "యొక్క", "లో", "కి", "కు", "ను", "ని"]
-    words = [w for w in cleaned_query.split() if len(w) > 2 and w not in stop_words]
+    # యూజర్ అడిగిన పదం/ప్రశ్న నుండి చిన్న స్టాప్ వర్డ్స్ తొలగించడం
+    stop_words = ["లో", "కి", "కు", "ను", "ని", "యొక్క", "అంటే", "ఏమిటి", "ఇవ్వు"]
+    words = [w for w in cleaned_query.split() if len(w) > 1 and w not in stop_words]
     
     if not words:
-        words = [w for w in cleaned_query.split() if len(w) > 3]
+        words = [cleaned_query]
 
-    # అన్ని పుస్తకాల నుండి ఏ విధమైన లగ్జరీ లిమిట్స్ లేకుండా డేటాను సేకరించడం
+    # 1. విడి విడి పదాలతో లేదా పూర్తి క్వెరీతో డేటాబేస్‌లోని మొత్తం పుస్తకాల OCR టెక్స్ట్ నుండి వెతకడం
     if words:
         conditions = " OR ".join(["extracted_text ILIKE %s" for _ in words])
         params = [f"%{w}%" for w in words]
         
-        # 🌟 ఇక్కడ ఎలాంటి LIMIT లేదు - అందిన అన్ని పుస్తకాల పేజీలు వస్తాయి
+        # 🌟 ఎటువంటి LIMIT లేకుండా అన్ని పుస్తకాల నుండి పూర్తి ఫలితాలను లాగడం
         cursor.execute(f'''
             SELECT book_title, filename, page_number, extracted_text, word_boxes 
             FROM pdf_text_index 
@@ -683,20 +592,21 @@ def search_pdf_highlight(request: Request, query: str = Query(...)):
         ''', tuple(params))
         matches = cursor.fetchall()
         
-    # ఒకవేళ దొరకకపోతే జనరల్ వ్యాకరణం/సంధి పదాలతో వెతకడం (ఇక్కడ కూడా లిమిట్ లేదు)
+    # ఒకవేళ విడి పదాలతో రాకపోతే, మొత్తం వాక్యంతో వెతకడం
     if not matches:
         cursor.execute('''
             SELECT book_title, filename, page_number, extracted_text, word_boxes 
             FROM pdf_text_index 
-            WHERE extracted_text ILIKE %s OR extracted_text ILIKE %s
+            WHERE extracted_text ILIKE %s
             ORDER BY id DESC
-        ''', ('%సంధి%', '%వ్యాకరణం%'))
+        ''', (f'%{cleaned_query}%',))
         matches = cursor.fetchall()
         
     conn.close()
     
     results = []
-    for m in matches:
+    # 🌟 అత్యంత ముఖ్యం: దొరికిన అన్ని మ్యాచెస్‌ను (గరిష్టంగా 100 వరకు) పూర్తిగా ప్రాసెస్ చేసి AI కి పంపడం
+    for m in matches[:100]:  
         text = m['extracted_text'] or ""
         
         pos = -1
@@ -708,7 +618,8 @@ def search_pdf_highlight(request: Request, query: str = Query(...)):
                 break
         if pos == -1: pos = 0
             
-        snippet = text[max(0, pos - 80):min(len(text), pos + 250)].replace('\n', ' ')
+        # ప్రతి పేజీ నుండి తగినంత పెద్ద స్నిప్పెట్ తీసుకుని AI కి ఇవ్వడం
+        snippet = text[max(0, pos - 150):min(len(text), pos + 450)].replace('\n', ' ')
         
         filename = m.get('filename')
         highlighted_img_b64 = ""
@@ -719,17 +630,23 @@ def search_pdf_highlight(request: Request, query: str = Query(...)):
                     filename = f
                     break
                     
-        if filename:
+        # బ్రౌజర్ వేగం కోసం మొదటి 8 ఫలితాలకు మాత్రమే PDF పేజీ ఇమేజ్ రెండర్ చేయడం
+        if filename and len(results) < 8:
             filepath = os.path.join(DOWNLOAD_DIR, filename)
             if os.path.exists(filepath):
+                doc = None
                 try:
                     doc = fitz.open(filepath)
                     page = doc[m['page_number'] - 1]
-                    pix = page.get_pixmap(dpi=150)
+                    pix = page.get_pixmap(dpi=110)
                     img_bytes = pix.tobytes("png")
                     highlighted_img_b64 = base64.b64encode(img_bytes).decode('utf-8')
                 except Exception as ex:
                     print("PDF Render Error:", ex)
+                finally:
+                    if doc is not None:
+                        try: doc.close()
+                        except: pass
 
         results.append({
             "book_title": m['book_title'],
@@ -741,7 +658,26 @@ def search_pdf_highlight(request: Request, query: str = Query(...)):
             "page_image": highlighted_img_b64
         })
         
-    ai_summary = generate_ai_summary(cleaned_query, results) if results else "మీ ప్రశ్నకు తగిన సమాచారం లభించలేదు."
+    # 🌟 అన్ని పుస్తకాల పూర్తి డేటాతో AI సారాంశాన్ని ఉత్పత్తి చేయడం
+    ai_summary = generate_ai_summary(cleaned_query, results) if results else "మీరు అడిగిన అంశానికి సంబంధించిన సమాచారం ప్రస్తుత గ్రంథాల OCR డేటాలో లభించలేదు."
+    
+    # డేటాబేస్‌లో రీసెర్చ్ హిస్టరీని శాశ్వతంగా సేవ్ చేయడం
+    user_email = user.get("email") if user else "anonymous"
+    if ai_summary and "లభించలేదు" not in ai_summary and "లోపం" not in ai_summary:
+        try:
+            IST = pytz.timezone('Asia/Kolkata')
+            save_time = datetime.now(IST).strftime("%d-%m-%Y %I:%M %p")
+            
+            conn_db = get_db_connection()
+            cur_db = conn_db.cursor()
+            cur_db.execute('''
+                INSERT INTO ai_research_history (email, query, ai_summary, sources_json, created_at)
+                VALUES (%s, %s, %s, %s, %s)
+            ''', (user_email, cleaned_query, ai_summary, json.dumps(results[:15], ensure_ascii=False), save_time))
+            conn_db.commit()
+            conn_db.close()
+        except Exception as db_err:
+            print("Error saving AI history to DB:", db_err)
         
     return {
         "query": cleaned_query,
@@ -749,12 +685,33 @@ def search_pdf_highlight(request: Request, query: str = Query(...)):
         "results": results
     }
 
+@app.get("/api/ai-history")
+def get_ai_history(request: Request):
+    user = request.session.get('user')
+    if not user: return {"error": "Unauthorized"}
+    
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    cursor.execute("SELECT * FROM ai_research_history WHERE email = %s ORDER BY id DESC LIMIT 50", (user.get('email'),))
+    history = cursor.fetchall()
+    conn.close()
+    return {"history": history}
+
+@app.delete("/api/ai-history/{history_id}")
+def delete_ai_history(request: Request, history_id: int):
+    user = request.session.get('user')
+    if not user: return {"error": "Unauthorized"}
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM ai_research_history WHERE id = %s AND email = %s", (history_id, user.get('email')))
+    conn.commit()
+    conn.close()
+    return {"status": "success", "message": "విజయవంతంగా తొలగించబడింది."}
 
 @app.get("/view-pdf")
 def view_pdf(filename: str, page: int = 1):
-    """డౌన్‌లోడ్స్ నుండి PDF ని నిర్దిష్ట పేజీతో ఓపెన్ చేయడానికి"""
     file_path = os.path.join(DOWNLOAD_DIR, filename)
     if os.path.exists(file_path):
-        # బ్రౌజర్ నేరుగా పేజీకి వెళ్లేలా ఫైల్ రెస్పాన్స్ పంపడం
         return FileResponse(file_path, media_type='application/pdf')
     return {"error": "File not found"}
