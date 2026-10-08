@@ -673,7 +673,7 @@ def search_pdf_highlight(request: Request, query: str = Query(...), books: str =
         if pos == -1: pos = 0
             
         # 🌟 స్నిప్పెట్ పరిధిని పెంచుతున్నాము, తద్వారా పేజీలోని ముందస్తు వివరణ ('విశే :- ...') కూడా పూర్తిగా వస్తుంది
-        snippet = text[max(0, pos - 400):min(len(text), pos + 800)].replace('\n', ' ')
+        snippet = text[max(0, pos - 400):min(len(text), pos + 1000)].replace('\n', ' ')
         filename = m.get('filename')
         highlighted_img_b64 = ""
         
