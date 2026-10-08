@@ -134,6 +134,46 @@ def log_user_activity(request: Request, action_type: str, details: str, status: 
         except Exception as e:
             print("DB Error logging activity:", e)
 
+@app.get('/profile')
+def user_profile_page(request: Request):
+    user = request.session.get('user')
+    if not user:
+        return RedirectResponse(url='/login/google', status_code=303)
+    
+    profile_page = os.path.join(FRONTEND_DIR, "profile.html")
+    return FileResponse(profile_page) if os.path.exists(profile_page) else {"error": "profile.html not found"}
+
+@app.get('/user/activity-json')
+def get_user_activity_json(request: Request):
+    user = request.session.get('user')
+    if not user:
+        return {"error": "Unauthorized"}
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # యూజర్ యొక్క కార్యకలాపాలు (Activities) తెప్పించడం
+        cursor.execute("SELECT action, details, time, status FROM activities WHERE email = %s ORDER BY id DESC", (user.get('email'),))
+        activities = [dict(row) for row in cursor.fetchall()]
+        
+        # గణాంకాలు (Stats) లెక్కించడం
+        searches_count = sum(1 for a in activities if a['action'] == 'Search')
+        downloads_count = sum(1 for a in activities if a['action'] == 'Download' and a['status'] == 'Success')
+        
+        conn.close()
+        
+        return {
+            "user": user,
+            "stats": {
+                "searches": searches_count,
+                "downloads": downloads_count
+            },
+            "activities": activities
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get('/login/google')
 async def login(request: Request):
     redirect_uri = request.url_for('auth')
