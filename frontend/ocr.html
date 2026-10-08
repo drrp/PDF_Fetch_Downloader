@@ -4,6 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>తెలుగు సంప్రదాయ వ్యాకరణ అధ్యయనం - AI రీసెర్చ్ హబ్</title>
+    <link
+      rel="icon"
+      type="image/png"
+      href="https://auchithyam.com/images/LOGO.jpg"
+    />
 
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
@@ -161,7 +166,7 @@
         <div
           id="aiSummaryCard"
           class="card mb-4 shadow-sm border-success bg-white rounded-4"
-          style="display: none; margin-top: 20px;"
+          style="display: none; margin-top: 20px"
         >
           <div
             class="card-header bg-success text-white fw-bold py-3 rounded-top-4 telugu-title"
@@ -242,32 +247,70 @@
               >
                 <!-- నూతన OCR కంట్రోల్స్ ఇక్కడ చేర్చబడ్డాయి -->
                 <div class="border p-3 rounded bg-white shadow-sm mb-3">
-                  <label class="form-label fw-bold telugu-body" style="font-size: 17px;">OCR రన్ చేయవలసిన ఫైల్‌ను ఎంచుకోండి:</label>
-                  <select id="downloadedFilesSelect" class="form-select form-select-lg telugu-body mb-3">
+                  <label
+                    class="form-label fw-bold telugu-body"
+                    style="font-size: 17px"
+                    >OCR రన్ చేయవలసిన ఫైల్‌ను ఎంచుకోండి:</label
+                  >
+                  <select
+                    id="downloadedFilesSelect"
+                    class="form-select form-select-lg telugu-body mb-3"
+                  >
                     <option value="">-- పుస్తకాన్ని ఎంచుకోండి --</option>
                   </select>
-                  
-                  <label class="form-label fw-bold telugu-body" style="font-size: 17px;">OCR విధానం:</label>
-                  <select id="ocrMode" class="form-select telugu-body mb-3" onchange="togglePageInputs()">
-                      <option value="full">పూర్తి పుస్తకం (Full PDF)</option>
-                      <option value="range">పేజీల శ్రేణి (Page Range)</option>
+
+                  <label
+                    class="form-label fw-bold telugu-body"
+                    style="font-size: 17px"
+                    >OCR విధానం:</label
+                  >
+                  <select
+                    id="ocrMode"
+                    class="form-select telugu-body mb-3"
+                    onchange="togglePageInputs()"
+                  >
+                    <option value="full">పూర్తి పుస్తకం (Full PDF)</option>
+                    <option value="range">పేజీల శ్రేణి (Page Range)</option>
                   </select>
-                  
-                  <div id="pageRangeInputs" class="row mb-3" style="display: none;">
-                      <div class="col-6">
-                          <input type="number" id="ocrStartPage" class="form-control" placeholder="ప్రారంభ పేజీ (ఉదా: 1)">
-                      </div>
-                      <div class="col-6">
-                          <input type="number" id="ocrEndPage" class="form-control" placeholder="చివరి పేజీ (ఉదా: 10)">
-                      </div>
+
+                  <div
+                    id="pageRangeInputs"
+                    class="row mb-3"
+                    style="display: none"
+                  >
+                    <div class="col-6">
+                      <input
+                        type="number"
+                        id="ocrStartPage"
+                        class="form-control"
+                        placeholder="ప్రారంభ పేజీ (ఉదా: 1)"
+                      />
+                    </div>
+                    <div class="col-6">
+                      <input
+                        type="number"
+                        id="ocrEndPage"
+                        class="form-control"
+                        placeholder="చివరి పేజీ (ఉదా: 10)"
+                      />
+                    </div>
                   </div>
-                  
-                  <button class="btn btn-success px-4 py-2 fw-bold telugu-title w-100" style="font-size: 18px" type="button" onclick="triggerManualOCR()">
+
+                  <button
+                    class="btn btn-success px-4 py-2 fw-bold telugu-title w-100"
+                    style="font-size: 18px"
+                    type="button"
+                    onclick="triggerManualOCR()"
+                  >
                     <i class="fa-solid fa-play me-2"></i> OCR ప్రారంభించు
                   </button>
                 </div>
-                
-                <div id="ocrStatus" class="fw-bold mt-3 telugu-body text-center" style="font-size: 17px;"></div>
+
+                <div
+                  id="ocrStatus"
+                  class="fw-bold mt-3 telugu-body text-center"
+                  style="font-size: 17px"
+                ></div>
               </div>
 
               <div class="tab-pane fade" id="editPanel" role="tabpanel">
@@ -359,10 +402,13 @@
           if (container && data.status === "success" && data.books.length > 0) {
             container.innerHTML = "";
             data.books.forEach((book) => {
+              // 🌟 .pdf లేదా .PDF ఎక్స్‌టెన్షన్‌ను తొలగించడానికి (Regex వాడకం)
+              let cleanBookName = book.replace(/\.[^/.]+$/, "");
+              
               const label = document.createElement("label");
               label.style.cursor = "pointer";
               label.className = "telugu-body d-flex align-items-center gap-1";
-              label.innerHTML = `<input type="checkbox" name="selected_books" value="${book}" checked> <span class="badge bg-secondary">${book}</span>`;
+              label.innerHTML = `<input type="checkbox" name="selected_books" value="${book}" checked> <span class="badge bg-secondary">${cleanBookName}</span>`;
               container.appendChild(label);
             });
           }
@@ -404,64 +450,82 @@
 
       // కొత్తగా చేర్చిన పేజీ రేంజ్ టోగుల్ ఫంక్షన్
       function togglePageInputs() {
-          const mode = document.getElementById("ocrMode").value;
-          document.getElementById("pageRangeInputs").style.display = mode === "range" ? "flex" : "none";
+        const mode = document.getElementById("ocrMode").value;
+        document.getElementById("pageRangeInputs").style.display =
+          mode === "range" ? "flex" : "none";
       }
 
       // అప్‌డేట్ చేసిన OCR ప్రారంభించు ఫంక్షన్ (SweetAlert2 తో)
       async function triggerManualOCR() {
         const filename = document.getElementById("downloadedFilesSelect").value;
         const mode = document.getElementById("ocrMode").value;
-        
+
         if (!filename) {
-          Swal.fire('గమనిక', 'దయచేసి ముందుగా ఒక పుస్తకాన్ని ఎంచుకోండి.', 'warning');
+          Swal.fire(
+            "గమనిక",
+            "దయచేసి ముందుగా ఒక పుస్తకాన్ని ఎంచుకోండి.",
+            "warning",
+          );
           return;
         }
 
         let apiUrl = `/run-special-ocr?filename=${encodeURIComponent(filename)}`;
-        
+
         if (mode === "range") {
-            const startPage = document.getElementById("ocrStartPage").value;
-            const endPage = document.getElementById("ocrEndPage").value;
-            if (!startPage || !endPage || parseInt(startPage) > parseInt(endPage) || parseInt(startPage) < 1) {
-                Swal.fire('లోపం', 'దయచేసి సరైన ప్రారంభ మరియు చివరి పేజీ నంబర్లను నమోదు చేయండి.', 'error');
-                return;
-            }
-            apiUrl += `&start_page=${startPage}&end_page=${endPage}`;
+          const startPage = document.getElementById("ocrStartPage").value;
+          const endPage = document.getElementById("ocrEndPage").value;
+          if (
+            !startPage ||
+            !endPage ||
+            parseInt(startPage) > parseInt(endPage) ||
+            parseInt(startPage) < 1
+          ) {
+            Swal.fire(
+              "లోపం",
+              "దయచేసి సరైన ప్రారంభ మరియు చివరి పేజీ నంబర్లను నమోదు చేయండి.",
+              "error",
+            );
+            return;
+          }
+          apiUrl += `&start_page=${startPage}&end_page=${endPage}`;
         }
 
         // 🌟 SweetAlert లోడింగ్ యానిమేషన్
         Swal.fire({
-          title: 'OCR ప్రాసెసింగ్ జరుగుతోంది...',
-          html: 'పుస్తకంలోని పేజీలు స్కాన్ అవుతున్నాయి.<br>దీనికి కొద్ది నిమిషాలు పట్టవచ్చు. దయచేసి వేచి ఉండండి...',
+          title: "OCR ప్రాసెసింగ్ జరుగుతోంది...",
+          html: "పుస్తకంలోని పేజీలు స్కాన్ అవుతున్నాయి.<br>దీనికి కొద్ది నిమిషాలు పట్టవచ్చు. దయచేసి వేచి ఉండండి...",
           allowOutsideClick: false,
           allowEscapeKey: false,
           didOpen: () => {
             Swal.showLoading();
-          }
+          },
         });
-          
+
         try {
           const response = await fetch(apiUrl, { method: "POST" });
           const data = await response.json();
-          
+
           if (data.status === "success") {
             // 🌟 విజయవంతమైనప్పుడు SweetAlert
             Swal.fire({
-              icon: 'success',
-              title: 'పూర్తయింది!',
+              icon: "success",
+              title: "పూర్తయింది!",
               text: data.message,
-              confirmButtonText: 'సరే',
-              confirmButtonColor: '#28a745'
+              confirmButtonText: "సరే",
+              confirmButtonColor: "#28a745",
             });
             loadDownloadedBooksForOCR("downloadedFilesSelect");
-            loadIndexedBooks(); 
+            loadIndexedBooks();
           } else {
             // 🌟 ఎర్రర్ వచ్చినప్పుడు SweetAlert
-            Swal.fire('ఎర్రర్', data.message, 'error');
+            Swal.fire("ఎర్రర్", data.message, "error");
           }
         } catch (error) {
-          Swal.fire('సాంకేతిక లోపం', 'సర్వర్ వద్ద అనుకోని లోపం ఏర్పడింది. దయచేసి మళ్లీ ప్రయత్నించండి.', 'error');
+          Swal.fire(
+            "సాంకేతిక లోపం",
+            "సర్వర్ వద్ద అనుకోని లోపం ఏర్పడింది. దయచేసి మళ్లీ ప్రయత్నించండి.",
+            "error",
+          );
         }
       }
 
