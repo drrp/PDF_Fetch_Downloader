@@ -488,10 +488,9 @@
 
       if (!query) return alert("ప్రశ్న టైప్ చేయండి.");
       resultsDiv.innerHTML =
-        "<p class='text-primary p-3 telugu-body fw-bold'><i class='fa-solid fa-spinner fa-spin me-2'></i>శోధిస్తోంది...</p>";
+        "<p class='text-primary p-3 telugu-body fw-bold fs-5'><i class='fa-solid fa-spinner fa-spin me-2'></i>డేటాబేస్‌లో శోధిస్తోంది...</p>";
       summaryCard.style.display = "none";
 
-      // URL కి books పరామీటర్‌ను కలపడం
       let apiUrl = `/search-pdf-highlight?query=${encodeURIComponent(query)}`;
       if (selectedBooks) {
         apiUrl += `&books=${encodeURIComponent(selectedBooks)}`;
@@ -501,13 +500,50 @@
         const response = await fetch(apiUrl);
         const data = await response.json();
 
+        // 1. AI సారాంశాన్ని చూపించడం
         if (data.ai_summary) {
           summaryText.innerHTML = marked.parse(data.ai_summary);
           summaryCard.style.display = "block";
         }
         
-        // 🌟 ఇక్కడ ఫలితాల కార్డ్స్ అన్నీ కనిపించకుండా ఖాళీ చేయబడ్డాయి
+        // 2. 🌟 డేటాబేస్ మూల వాక్యాలను (Source Snippets) కార్డుల్లో చూపించడం
         resultsDiv.innerHTML = ""; 
+        
+        if (data.results && data.results.length > 0) {
+            data.results.forEach(res => {
+                let card = document.createElement("div");
+                card.className = "col-md-6 mb-4";
+                
+                let imgHtml = res.page_image 
+                    ? `<img src="data:image/png;base64,${res.page_image}" class="img-fluid rounded mt-3 border shadow-sm" alt="Page snippet">` 
+                    : "";
+                
+                // హైలైట్ చేసిన కీవర్డ్
+                let highlightedSnippet = res.snippet.replace(new RegExp(data.query, "gi"), match => `<span class="bg-warning px-1 fw-bold">${match}</span>`);
+
+                card.innerHTML = `
+                    <div class="card h-100 shadow border-0 bg-white rounded-4">
+                        <div class="card-header bg-light border-0 pt-3 pb-0">
+                            <h5 class="fw-bold telugu-title" style="color: #b91c1c;">
+                                <i class="fa-solid fa-book-open text-muted me-2"></i>${res.book_title} (పేజీ: ${res.page_number})
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="telugu-body text-dark" style="font-size: 18px; line-height: 1.8; text-align: justify;">${highlightedSnippet}</p>
+                            ${imgHtml}
+                        </div>
+                        <div class="card-footer bg-white border-0 text-end pb-3">
+                            <a href="/view-pdf?filename=${encodeURIComponent(res.filename)}&page=${res.page_number}" target="_blank" class="btn btn-outline-primary btn-sm telugu-body fw-bold">
+                                <i class="fa-solid fa-file-pdf me-1"></i> ఒరిజినల్ PDF చూడండి
+                            </a>
+                        </div>
+                    </div>
+                `;
+                resultsDiv.appendChild(card);
+            });
+        } else {
+             resultsDiv.innerHTML = `<p class='text-danger p-3 telugu-body fw-bold fs-5'>ఎంచుకున్న గ్రంథాలలో ఎటువంటి సమాచారం లభించలేదు.</p>`;
+        }
 
       } catch (error) {
         resultsDiv.innerHTML = `<p class='text-danger p-3 telugu-body fw-bold'>లోపం ఏర్పడింది.</p>`;

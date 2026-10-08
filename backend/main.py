@@ -571,7 +571,7 @@ def generate_ai_summary(query, snippets_list):
     except Exception as e:
         print("Gemini AI Error:", str(e))
         return "సారాంశం రూపొందించడంలో సాంకేతిక లోపం ఏర్పడింది."
-
+    
 @app.get("/search-pdf-highlight")
 def search_pdf_highlight(request: Request, query: str = Query(...), books: str = Query(None)):
     user = request.session.get('user')
@@ -590,47 +590,38 @@ def search_pdf_highlight(request: Request, query: str = Query(...), books: str =
         book_params = selected_books
 
     matches = []
-    stop_words = ["లో", "కి", "కు", "ను", "ని", "యొక్క", "అంటే", "ఏమిటి", "ఇవ్వు", "గురించి"]
+    
+    stop_words = ["లో", "కి", "కు", "ను", "ని", "యొక్క", "అంటే", "ఏమిటి", "ఇవ్వు", "గురించి", "అనే", "రూపాన్ని", "సాధించవచ్చునా", "చేయవచ్చునా"]
     words = [w for w in cleaned_query.split() if len(w) > 1 and w not in stop_words]
     if not words: words = [cleaned_query]
 
-    if words:
-        conditions = " OR ".join(["extracted_text ILIKE %s OR book_title ILIKE %s" for _ in words])
-        params = []
-        for w in words:
-            params.extend([f"%{w}%", f"%{w}%"])
-            
+    # 1. యూజర్ ఇచ్చిన పూర్తి ప్రశ్నకు లేదా పదానికి డేటాబేస్ అంతటా సర్చ్ (LIMIT లేకుండా పూర్తి ఫలితాలు)
+    cursor.execute(f'''
+        SELECT book_title, filename, page_number, extracted_text, word_boxes 
+        FROM pdf_text_index 
+        WHERE (extracted_text ILIKE %s OR book_title ILIKE %s){book_filter}
+        ORDER BY page_number ASC
+    ''', tuple([f'%{cleaned_query}%', f'%{cleaned_query}%'] + book_params))
+    matches = [dict(row) for row in cursor.fetchall()]
+
+    # 2. ఒకవేళ పూర్తి వాక్యానికి రాకపోతే, విడివిడి పదాలతో డేటాబేస్ అంతటా వెతకడం
+    if not matches and words:
+        conditions = " OR ".join(["extracted_text ILIKE %s" for _ in words])
+        params = [f"%{w}%" for w in words]
+        
         cursor.execute(f'''
             SELECT book_title, filename, page_number, extracted_text, word_boxes 
             FROM pdf_text_index 
             WHERE ({conditions}){book_filter}
-            ORDER BY id DESC
+            ORDER BY page_number ASC
         ''', tuple(params + book_params))
-        matches = [dict(row) for row in cursor.fetchall()]
-        
-    if not matches:
-        cursor.execute(f'''
-            SELECT book_title, filename, page_number, extracted_text, word_boxes 
-            FROM pdf_text_index 
-            WHERE (extracted_text ILIKE %s OR book_title ILIKE %s){book_filter}
-            ORDER BY id DESC
-        ''', tuple([f'%{cleaned_query}%', f'%{cleaned_query}%'] + book_params))
-        matches = [dict(row) for row in cursor.fetchall()]
-
-    if not matches and not selected_books:
-        cursor.execute('''
-            SELECT book_title, filename, page_number, extracted_text, word_boxes 
-            FROM pdf_text_index 
-            WHERE book_title ILIKE %s OR book_title ILIKE %s
-            ORDER BY id DESC
-            LIMIT 50
-        ''', ('%బాలవ్యాకరణ%', '%ప్రౌఢవ్యాకరణ%'))
         matches = [dict(row) for row in cursor.fetchall()]
         
     conn.close()
     
     results = []
-    for m in matches[:50]:
+    # 🌟 అవాంఛిత లిమిట్ పూర్తిగా తొలగించబడింది. డేటాబేస్‌లో దొరికిన అన్ని మ్యాచ్‌లను ప్రాసెస్ చేస్తాము.
+    for m in matches:
         text = m['extracted_text'] or ""
         pos = -1
         matched_w = cleaned_query
@@ -641,16 +632,34 @@ def search_pdf_highlight(request: Request, query: str = Query(...), books: str =
                 break
         if pos == -1: pos = 0
             
-        snippet = text[max(0, pos - 120):min(len(text), pos + 350)].replace('\n', ' ')
+        # 🌟 స్నిప్పెట్ పరిధిని పెంచుతున్నాము, తద్వారా పేజీలోని ముందస్తు వివరణ ('విశే :- ...') కూడా పూర్తిగా వస్తుంది
+        snippet = text[max(0, pos - 400):min(len(text), pos + 800)].replace('\n', ' ')
         filename = m.get('filename')
+        highlighted_img_b64 = ""
         
         if not filename and m.get('book_title'):
             for f in os.listdir(DOWNLOAD_DIR):
                 if m['book_title'][:10] in f and f.endswith('.pdf'):
                     filename = f
                     break
+                    
+        # AI సారాంశం కోసం మొదటి 10 అత్యుత్తమ సందర్భాలను పంపిస్తాము
+        if filename and len(results) < 10:
+            filepath = os.path.join(DOWNLOAD_DIR, filename)
+            if os.path.exists(filepath):
+                doc = None
+                try:
+                    doc = fitz.open(filepath)
+                    page = doc[m['page_number'] - 1]
+                    pix = page.get_pixmap(dpi=100)
+                    img_bytes = pix.tobytes("png")
+                    highlighted_img_b64 = base64.b64encode(img_bytes).decode('utf-8')
+                except: pass
+                finally:
+                    if doc is not None:
+                        try: doc.close()
+                        except: pass
 
-        # ఇమేజ్ జనరేషన్ కోడ్ పూర్తిగా తొలగించబడింది (Fast & Clean)
         results.append({
             "book_title": m['book_title'],
             "filename": filename or "",
@@ -658,17 +667,17 @@ def search_pdf_highlight(request: Request, query: str = Query(...), books: str =
             "snippet": f"...{snippet}...",
             "word_boxes": json.loads(m['word_boxes']) if m.get('word_boxes') else [],
             "query": matched_w,
-            "page_image": ""  # ఖాళీగా పంపబడుతుంది
+            "page_image": highlighted_img_b64
         })
         
-    ai_summary = generate_ai_summary(cleaned_query, results) if results else "మీరు అడిగిన అంశానికి సంబంధించిన సమాచారం ప్రస్తుత గ్రంథాల OCR డేటాలో లభించలేదు."
+    ai_summary = generate_ai_summary(cleaned_query, results) if results else "మీరు అడిగిన అంశానికి సంబంధించిన సమాచారం ఎంచుకున్న గ్రంథాల OCR డేటాలో లభించలేదు."
     
     return {
         "query": cleaned_query,
         "ai_summary": ai_summary,
         "results": results
     }
-
+    
 @app.get("/view-pdf")
 def view_pdf(filename: str, page: int = 1):
     file_path = os.path.join(DOWNLOAD_DIR, filename)
