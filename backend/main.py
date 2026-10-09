@@ -13,6 +13,7 @@ import base64
 import fitz  # PyMuPDF
 import time
 import pytz
+from google.oauth2 import service_account
 from google import genai
 from authlib.integrations.starlette_client import OAuth
 from google.cloud import vision
@@ -391,7 +392,15 @@ def run_special_ocr(request: Request, filename: str = Query(...), start_page: in
         
     doc = None
     try:
-        client = vision.ImageAnnotatorClient()
+        # 🌟 Google Cloud Credentials ను Environment Variable నుండి తీసుకునే విధానం
+        google_creds_json = os.getenv("GOOGLE_CREDENTIALS_JSON")
+        if google_creds_json:
+            creds_dict = json.loads(google_creds_json)
+            credentials = service_account.Credentials.from_service_account_info(creds_dict)
+            client = vision.ImageAnnotatorClient(credentials=credentials)
+        else:
+            client = vision.ImageAnnotatorClient()
+
         doc = fitz.open(filepath)
         total_pages = len(doc)
         
