@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="te">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>గ్రంథ పఠనం - TDL</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Mandali&family=Suranna&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: "Mandali", sans-serif;
+        background-color: #2c1e16; /* పాత చెక్క లేదా డార్క్ బ్యాక్‌గ్రౌండ్ */
+        margin: 0;
+        padding: 20px;
+        display: flex;
+        justify-content: center;
+      }
+
+      /* 🌟 అసలైన పుస్తకం పేజీ లాంటి డిజైన్ */
+      .book-container {
+        background-color: #fcf9f2; /* పాత కాగితం రంగు */
+        width: 100%;
+        max-width: 850px;
+        padding: 40px 60px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        border-radius: 4px;
+        border-left: 12px solid #8d4204; /* పుస్తకం బైండింగ్ ఎఫెక్ట్ */
+        min-height: 90vh;
+      }
+
+      .book-header {
+        text-align: center;
+        border-bottom: 2px solid #d4c5b0;
+        padding-bottom: 15px;
+        margin-bottom: 30px;
+      }
+
+      .book-title {
+        font-family: "Suranna", serif;
+        font-size: 32px;
+        color: #5c2c16;
+        margin: 0;
+      }
+
+      .controls {
+        text-align: center;
+        margin-bottom: 20px;
+      }
+
+      .btn-back {
+        background: #5c2c16;
+        color: white;
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        font-size: 16px;
+      }
+
+      /* 🌟 పేజీ టెక్స్ట్ మరియు పారాగ్రాఫ్ స్పేసింగ్ సర్దుబాటు */
+     .page-content {
+            font-size: 20px;
+            line-height: 1.8;
+            color: #2b2b2b;
+            text-align: justify;
+            margin-bottom: 20px;
+        }
+
+        /* 🌟 పారాగ్రాఫ్‌ల మధ్య దూరాన్ని పెంచడానికి ఈ మార్జిన్ విలువను మార్చండి (ఉదాహరణకు 25px లేదా 30px) */
+        .paragraph-block {
+            margin-bottom: 30px; /* ఇక్కడ మీరు ఎంత దూరం కావాలో అంత సెట్ చేసుకోవచ్చు */
+            text-indent: 30px;   /* మొదటి లైన్ ఇండెంటేషన్ */
+        }
+
+      .page-number {
+        text-align: center;
+        font-family: "Suranna", serif;
+        font-size: 20px;
+        color: #8c7b68;
+        margin: 30px 0;
+      }
+
+      .page-divider {
+        border: 0;
+        height: 1px;
+        background-image: linear-gradient(
+          to right,
+          rgba(0, 0, 0, 0),
+          rgba(140, 123, 104, 0.5),
+          rgba(0, 0, 0, 0)
+        );
+        margin: 40px 0;
+      }
+
+      #loading {
+        text-align: center;
+        color: #5c2c16;
+        font-size: 20px;
+        margin-top: 50px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="book-container">
+      <div class="controls">
+        <a href="/ocr-hub" class="btn-back"
+          ><i class="fa-solid fa-arrow-left"></i> వెనుకకు</a
+        >
+      </div>
+
+      <div class="book-header">
+        <h1 class="book-title" id="displayBookTitle">లోడ్ అవుతోంది...</h1>
+      </div>
+
+      <div id="loading">
+        <i class="fa-solid fa-book-open fa-fade"></i> గ్రంథం తెరవబడుతోంది...
+        దయచేసి వేచి ఉండండి.
+      </div>
+
+      <div id="bookContent">
+        <!-- ఇక్కడ పేజీలు లోడ్ అవుతాయి -->
+      </div>
+    </div>
+
+    <script>
+     function cleanAndNormalizeText(rawText) {
+            if (!rawText) return "";
+            
+            let text = rawText;
+            
+            // 1. విడిపోయిన పదాలను (hyphens) కలపడం
+            text = text.replace(/-\s*\n/g, ""); 
+
+            // 2. 🌟 మొదటి పేజీలో విడివిడిగా ఉన్న శీర్షికలను (Titles/Subtitles) గుర్తించి కచ్చితంగా సెంటర్ చేసే లాజిక్
+            // "సాహిత్య సోపానములు", "అను", "కావ్య విషయ సంగ్రహము", "ప్రథమ సోపానము" లాంటి లైన్లను ఒక్కోటిగా లేదా వరుసగా సెంటర్ చేయడం
+            text = text.replace(/^(సాహిత్య\s*సోపానములు)\s*$/gm, '<h1 style="text-align: center; color: #5c2c16; font-family: \'Suranna\', serif; font-size: 36px; margin: 1px 0; font-weight: bold;">$1</h1>');
+            text = text.replace(/^(అను)\s*$/gm, '<h3 style="text-align: center; color: #8c6239; font-family: \'Mandali\', sans-serif; font-size: 20px; margin: 1px 0; font-style: italic;">$1</h3>');
+            text = text.replace(/^(కావ్య\s*విషయ\s*సంగ్రహము)\s*$/gm, '<h2 style="text-align: center; color: #5c2c16; font-family: \'Suranna\', serif; font-size: 28px; margin: 1px 0; font-weight: bold;">$1</h2>');
+            text = text.replace(/^([\u0C00-\u0C7F\s]+సోపానము|[\u0C00-\u0C7F\s]+భాగము|[\u0C00-\u0C7F\s]+పరిచ్ఛేదము)\s*$/gm, '<h2 style="text-align: center; color: #b91c1c; font-family: \'Suranna\', serif; font-size: 20px; margin: 25px 0; font-weight: bold; border-bottom: 2px solid blue; padding-bottom: 5px; display: inline-block; width: 100%;">$1</h2>');
+
+            // 3. అసలైన పారాగ్రాఫ్ బ్రేక్స్‌ను తాత్కాలికంగా మార్చుకోవడం
+            text = text.replace(/\n{2,}/g, "___PARABREAK___");
+
+            // 4. సబ్ హెడ్డింగ్స్ (ఉదా: 1. విమర్శ యనఁగా నేమి?)
+            text = text.replace(/(\d{1,3})\s*[.]\s*([^\n?.!]+\s*[?.!])/g, '<div style="margin-top: 15px; margin-bottom: 8px;"><strong style="color: #5c2c16; font-family: \'Suranna\', serif; font-size: 22px;">$1. $2</strong></div>');
+
+            // 5. వృత్తి / వ్యాఖ్యానం / విశేషాలు
+            text = text.replace(/(వ్యా\.|వ్యా:|విశే\s*:-|విశేషము\s*:-|పాఠపరిశీలన\s*:-|పాఠపరిశీలనము\s*:-|పాఠాంతరము\s*:-)/g, function(match) {
+                return `<br><strong style="color: #1d4ed8; font-size: 20px;">${match}</strong> `;
+            });
+
+            text = text.replace(/(ఉదా\s*:-|ఉదాహరణ\s*:-|ఉదా:|ఉదాహరణకు\s*:-)/g, function(match) {
+                return `<br><strong style="color: #b45309; font-size: 20px;">${match}</strong> `;
+            });
+
+            // 6. మిగిలిన సింగిల్ న్యూలైన్లను స్పేస్‌లుగా మార్చడం
+            text = text.replace(/\n/g, " ");
+
+            // 7. పారాగ్రాఫ్ బ్రేక్స్‌ను అమర్చడం
+            text = text.replace(/___PARABREAK___/g, '</div><div class="page-content paragraph-block">');
+
+            text = text.replace(/\s{2,}/g, " ");
+            return text.trim();
+        }
+
+      window.addEventListener("DOMContentLoaded", () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const bookTitle = urlParams.get("title");
+
+        if (!bookTitle) {
+          document.getElementById("loading").innerHTML =
+            "ఎలాంటి గ్రంథం ఎంచుకోబడలేదు.";
+          return;
+        }
+
+        document.getElementById("displayBookTitle").innerText = bookTitle;
+
+        fetch(
+          `/api/get-book-content?book_title=${encodeURIComponent(bookTitle)}`,
+        )
+          .then((response) => response.json())
+          .then((data) => {
+            const loadingDiv = document.getElementById("loading");
+            loadingDiv.style.display = "none";
+
+            if (data.status === "error") {
+              document.getElementById("bookContent").innerHTML =
+                `<p style="color:red; text-align:center;">${data.message}</p>`;
+              return;
+            }
+
+            const contentDiv = document.getElementById("bookContent");
+
+            data.pages.forEach((page) => {
+              let cleanText = cleanAndNormalizeText(page.extracted_text);
+
+              let pageHtml = `
+                            <div class="page-content">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;${cleanText}</div>
+                            <div class="page-number">- ${page.page_number} -</div>
+                            <hr class="page-divider">
+                        `;
+              contentDiv.innerHTML += pageHtml;
+            });
+          })
+          .catch((err) => {
+            document.getElementById("loading").innerHTML =
+              "గ్రంథాన్ని లోడ్ చేయడంలో లోపం ఏర్పడింది.";
+            console.error(err);
+          });
+      });
+    </script>
+  </body>
+</html>

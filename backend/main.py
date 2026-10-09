@@ -15,6 +15,7 @@ import time
 import pytz
 from google.oauth2 import service_account
 from google import genai
+from google.genai import types  # 🌟 AI కాన్ఫిగరేషన్ (Temperature) కోసం ఇది అవసరం
 from authlib.integrations.starlette_client import OAuth
 from google.cloud import vision
 from dotenv import load_dotenv
@@ -515,9 +516,16 @@ def generate_ai_summary(query, snippets_list):
         client = genai.Client(api_key=api_key)
         combined_text = "\n".join([f"- గ్రంథం: {s['book_title']} (పేజీ {s['page_number']}): {s['snippet']}" for s in snippets_list])
         
+        # 🌟 ఇక్కడ అదనపు Strict Rules ని ప్రాంప్ట్ లోకి చేర్చాము
         prompt = f"""You are an expert assistant on Telugu traditional
                 grammar, grounded strictly in the ('{query}') from the text వ్యాకరణము.
         యూజర్ అడిగిన ('{query}') ఓసీఆర్ చేసిన డేటా ఆధారంగా మాత్రమే సమగ్రమైన సమాధానాన్ని తెలుగులో ఇవ్వండి.
+        
+        ⚠️ CRITICAL STRICT RULES FOR OCR REPRODUCTION:
+        1. OCR డేటాలో అక్షర దోషాలు (typos) ఉన్నా, అక్షరాలు మిస్ అయినా సరే వాటిని ఎట్టి పరిస్థితుల్లోనూ సరిదిద్దవద్దు (DO NOT AUTOCORRECT).
+        2. ఉదాహరణకు OCR లో "అ అ" అని ఉంటే, "అ ఆ" అని మీ సొంతంగా మార్చవద్దు. OCR లో ఏది ఉంటే అదే రాయాలి.
+        3. మీకు ఇచ్చిన OCR Text లోని అక్షరాలను, పదాలను ఉన్నవి ఉన్నట్లుగా (Exact match / Verbatim) మాత్రమే వాడాలి. మీ సొంతంగా ఒక్క అక్షరాన్ని కూడా చేర్చకూడదు.
+        
         ⚠️ అత్యంత ముఖ్యం: జవాబులో ఎట్టి పరిస్థితుల్లోనూ లటెక్ (LaTeX) కోడింగ్ లేదా గణిత చిహ్నాలు ($\text{{...}}$) వాడవద్దు. 
         సంధి రూపాలను లేదా పదాల కూర్పును ఎప్పుడూ సాధారణ తెలుగు అక్షరాలతో మాత్రమే రాయాలి.
         (ఉదాహరణకు: "నిర్జి + ఇంచు = నిర్జించు" అని మాత్రమే రాయాలి).
@@ -614,13 +622,28 @@ def generate_ai_summary(query, snippets_list):
 
         {combined_text}"""
 
-        chat = client.chats.create(model="gemini-3.8-flash")
+        # 🌟 ఇక్కడ Temperature 0.0 కి సెట్ చేయబడింది.
+        chat = client.chats.create(
+            model="gemini-3.8-flash",
+            config=types.GenerateContentConfig(
+                temperature=0.0,
+                top_p=0.1
+            )
+        )
         response = chat.send_message(prompt)
         return response.text if response and response.text else "AI సేవలు అందుబాటులో లేవు."
     except Exception as e:
         print("Gemini AI Error:", str(e))
         return "సారాంశం రూపొందించడంలో సాంకేతిక లోపం ఏర్పడింది."
-    
+
+def get_telugu_regex(word):
+    # ముందుగా యూజర్ ఇచ్చిన పదంలో అరసున్నా ఉంటే తీసేస్తాం
+    clean_word = word.replace('ఁ', '')
+    # స్పెషల్ క్యారెక్టర్స్ ( ?, *, . లాంటివి) ఉంటే ఎస్కేప్ చేస్తాం
+    escaped_chars = [re.escape(c) for c in clean_word]
+    # ప్రతి అక్షరం తర్వాత అరసున్నా (ఁ) ఆప్షనల్ గా (ఁ?) వచ్చేలా కలుపుతాం
+    return 'ఁ?'.join(escaped_chars) + 'ఁ?'
+
 @app.get("/search-pdf-highlight")
 def search_pdf_highlight(request: Request, query: str = Query(...), books: str = Query(None)):
     user = request.session.get('user')
@@ -644,19 +667,22 @@ def search_pdf_highlight(request: Request, query: str = Query(...), books: str =
     words = [w for w in cleaned_query.split() if len(w) > 1 and w not in stop_words]
     if not words: words = [cleaned_query]
 
-    # 1. యూజర్ ఇచ్చిన పూర్తి ప్రశ్నకు లేదా పదానికి డేటాబేస్ అంతటా సర్చ్ (LIMIT లేకుండా పూర్తి ఫలితాలు)
+    # 🌟 1. Regex ప్యాట్రన్ తయారు చేయడం
+    query_regex = get_telugu_regex(cleaned_query)
+
+    # 🌟 2. ILIKE బదులు ~* (Regex) వాడటం
     cursor.execute(f'''
         SELECT book_title, filename, page_number, extracted_text, word_boxes 
         FROM pdf_text_index 
-        WHERE (extracted_text ILIKE %s OR book_title ILIKE %s){book_filter}
+        WHERE (extracted_text ~* %s OR book_title ILIKE %s){book_filter}
         ORDER BY page_number ASC
-    ''', tuple([f'%{cleaned_query}%', f'%{cleaned_query}%'] + book_params))
+    ''', tuple([query_regex, f'%{cleaned_query}%'] + book_params))
     matches = [dict(row) for row in cursor.fetchall()]
 
-    # 2. ఒకవేళ పూర్తి వాక్యానికి రాకపోతే, విడివిడి పదాలతో డేటాబేస్ అంతటా వెతకడం
+    # విడివిడి పదాలతో వెతకడం
     if not matches and words:
-        conditions = " OR ".join(["extracted_text ILIKE %s" for _ in words])
-        params = [f"%{w}%" for w in words]
+        conditions = " OR ".join(["extracted_text ~* %s" for _ in words])
+        params = [get_telugu_regex(w) for w in words]
         
         cursor.execute(f'''
             SELECT book_title, filename, page_number, extracted_text, word_boxes 
@@ -669,19 +695,27 @@ def search_pdf_highlight(request: Request, query: str = Query(...), books: str =
     conn.close()
     
     results = []
-    # 🌟 అవాంఛిత లిమిట్ పూర్తిగా తొలగించబడింది. డేటాబేస్‌లో దొరికిన అన్ని మ్యాచ్‌లను ప్రాసెస్ చేస్తాము.
     for m in matches:
         text = m['extracted_text'] or ""
         pos = -1
         matched_w = cleaned_query
-        for w in words:
-            pos = text.find(w)
-            if pos != -1:
-                matched_w = w
-                break
+        
+        # 🌟 3. స్నిప్పెట్ కోసం పైథాన్ లో Regex వాడి వెతకడం 
+        match = re.search(query_regex, text)
+        if match:
+            pos = match.start()
+            matched_w = match.group() # ఇది 'పూఁబోఁడి' ని ఖచ్చితంగా క్యాచ్ చేస్తుంది
+        else:
+            for w in words:
+                w_regex = get_telugu_regex(w)
+                match_w = re.search(w_regex, text)
+                if match_w:
+                    pos = match_w.start()
+                    matched_w = match_w.group()
+                    break
+                    
         if pos == -1: pos = 0
             
-        # 🌟 స్నిప్పెట్ పరిధిని పెంచుతున్నాము, తద్వారా పేజీలోని ముందస్తు వివరణ ('విశే :- ...') కూడా పూర్తిగా వస్తుంది
         snippet = text[max(0, pos - 400):min(len(text), pos + 1000)].replace('\n', ' ')
         filename = m.get('filename')
         highlighted_img_b64 = ""
@@ -692,7 +726,6 @@ def search_pdf_highlight(request: Request, query: str = Query(...), books: str =
                     filename = f
                     break
                     
-        # AI సారాంశం కోసం మొదటి 10 అత్యుత్తమ సందర్భాలను పంపిస్తాము
         if filename and len(results) < 10:
             filepath = os.path.join(DOWNLOAD_DIR, filename)
             if os.path.exists(filepath):
@@ -715,7 +748,7 @@ def search_pdf_highlight(request: Request, query: str = Query(...), books: str =
             "page_number": m['page_number'],
             "snippet": f"...{snippet}...",
             "word_boxes": json.loads(m['word_boxes']) if m.get('word_boxes') else [],
-            "query": matched_w,
+            "query": matched_w,  # ఇక్కడ అరసున్నాతో దొరికిన అసలు పదం వెళుతుంది
             "page_image": highlighted_img_b64
         })
         
