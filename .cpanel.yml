@@ -1,0 +1,27 @@
+# cPanel Git deployment.
+#
+# This tells cPanel what to copy out of the repository into the live folder each time
+# you deploy from cPanel's Git Version Control page.
+#
+# ONE THING TO CHANGE FIRST: replace USERNAME below with your cPanel account name.
+# You can see it in cPanel under "Current User", or in any path in File Manager.
+---
+deployment:
+  tasks:
+    # Where the site lives. Change this if your document root is different, for
+    # example /home/USERNAME/library.auchithyam.com/
+    - export DEPLOYPATH=/home/USERNAME/public_html/
+
+    # Only what the app actually needs. The .git folder, any virtual environment,
+    # the build output and the downloaded books are deliberately left behind.
+    - /bin/mkdir -p $DEPLOYPATH
+    - /bin/cp -R backend $DEPLOYPATH
+    - /bin/cp -R frontend $DEPLOYPATH
+    - /bin/cp requirements.txt $DEPLOYPATH
+
+    # Your real .env is NOT in the repository, on purpose. Create it once on the
+    # server, inside the deployed folder, and never commit it.
+    #
+    # NOTE: cPanel runs Python through Passenger, which speaks WSGI. FastAPI is
+    # ASGI, so deploying these files does not by itself make the app run here -
+    # that needs a VPS or a host that runs an ASGI server.
