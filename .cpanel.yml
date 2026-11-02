@@ -10,7 +10,7 @@ deployment:
   tasks:
     # Where the site lives. Change this if your document root is different, for
     # example /home/USERNAME/library.auchithyam.com/
-    - export DEPLOYPATH=/home/rambhatl/public_html/
+    - export DEPLOYPATH=/home/rambhatl/public_html/repo/
 
     # Only what the app actually needs. The .git folder, any virtual environment,
     # the build output and the downloaded books are deliberately left behind.
